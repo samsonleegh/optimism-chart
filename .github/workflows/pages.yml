@@ -1,0 +1,46 @@
+name: Build & deploy optimism site
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # every 30 min. GitHub's minimum is 5 min, but scheduled runs are
+    # best-effort and often delayed under load — treat timing as approximate.
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}        # allow manual runs from the Actions tab
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# let a running build finish; don't pile up scheduled runs
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Generate static site
+        run: python build_static.py
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

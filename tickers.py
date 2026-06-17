@@ -1,0 +1,101 @@
+"""SG stock universe (SGX tickers, Yahoo Finance `.SI` suffix).
+
+Default = STI constituents + a few large/liquid names. yfinance is the data
+source, so this is the practical "all SG stocks" set: liquid counters with a
+clean 10-year history. Add more (ticker, name) pairs to widen coverage.
+"""
+
+SG_STOCKS = [
+    ("D05.SI", "DBS Group"),
+    ("O39.SI", "OCBC"),
+    ("U11.SI", "UOB"),
+    ("Z74.SI", "Singtel"),
+    ("S68.SI", "SGX"),
+    ("C6L.SI", "Singapore Airlines"),
+    ("9CI.SI", "CapitaLand Investment"),
+    ("BN4.SI", "Keppel"),
+    ("U96.SI", "Sembcorp Industries"),
+    ("S63.SI", "ST Engineering"),
+    ("F34.SI", "Wilmar International"),
+    ("BS6.SI", "Yangzijiang Shipbuilding"),
+    ("C07.SI", "Jardine Cycle & Carriage"),
+    ("J36.SI", "Jardine Matheson"),
+    ("H78.SI", "Hongkong Land"),
+    ("D01.SI", "DFI Retail Group"),
+    ("G13.SI", "Genting Singapore"),
+    ("Y92.SI", "Thai Beverage"),
+    ("C09.SI", "City Developments"),
+    ("U14.SI", "UOL Group"),
+    ("V03.SI", "Venture Corp"),
+    ("S58.SI", "SATS"),
+    ("C38U.SI", "CapitaLand Integrated Commercial Trust"),
+    ("A17U.SI", "CapitaLand Ascendas REIT"),
+    ("M44U.SI", "Mapletree Logistics Trust"),
+    ("ME8U.SI", "Mapletree Industrial Trust"),
+    ("N2IU.SI", "Mapletree Pan Asia Commercial Trust"),
+    ("AJBU.SI", "Keppel DC REIT"),
+    ("BUOU.SI", "Frasers Logistics & Commercial Trust"),
+    ("T82U.SI", "Suntec REIT"),
+    # --- extending toward top ~50 by market cap / liquidity ---
+    ("Q0F.SI", "IHH Healthcare"),
+    ("BVA.SI", "Top Glove"),
+    ("S59.SI", "SIA Engineering"),
+    ("C52.SI", "ComfortDelGro"),
+    ("O32.SI", "Olam Group"),
+    ("F17.SI", "GuocoLand"),
+    ("U06.SI", "Singapore Land Group"),
+    ("S08.SI", "Singapore Post"),
+    ("BSL.SI", "Raffles Medical"),
+    ("584.SI", "First Resources"),
+    ("P9D.SI", "Bumitama Agri"),
+    ("5E2.SI", "Seatrium"),
+    ("AWX.SI", "AEM Holdings"),
+    ("5CP.SI", "Silverlake Axis"),
+    ("OV8.SI", "Sheng Siong Group"),
+    ("CC3.SI", "StarHub"),
+    ("CRPU.SI", "Sasseur REIT"),
+    ("HMN.SI", "CapitaLand Ascott Trust"),
+    ("J91U.SI", "ESR-REIT"),
+    ("K71U.SI", "Keppel REIT"),
+]
+
+US_STOCKS = [
+    ("AAPL", "Apple"),
+    ("MSFT", "Microsoft"),
+    ("NVDA", "NVIDIA"),
+    ("AMZN", "Amazon"),
+    ("GOOGL", "Alphabet"),
+    ("META", "Meta Platforms"),
+    ("AVGO", "Broadcom"),
+    ("TSLA", "Tesla"),
+    ("BRK-B", "Berkshire Hathaway"),
+    ("JPM", "JPMorgan Chase"),
+    ("V", "Visa"),
+    ("MA", "Mastercard"),
+    ("WMT", "Walmart"),
+    ("UNH", "UnitedHealth"),
+    ("XOM", "Exxon Mobil"),
+    ("JNJ", "Johnson & Johnson"),
+    ("PG", "Procter & Gamble"),
+    ("HD", "Home Depot"),
+    ("COST", "Costco"),
+    ("ORCL", "Oracle"),
+    ("KO", "Coca-Cola"),
+    ("PEP", "PepsiCo"),
+    ("ABBV", "AbbVie"),
+    ("BAC", "Bank of America"),
+    ("CRM", "Salesforce"),
+    ("MCD", "McDonald's"),
+    ("NFLX", "Netflix"),
+    ("ADBE", "Adobe"),
+    ("AMD", "Advanced Micro Devices"),
+    ("DIS", "Walt Disney"),
+]
+
+# market code -> (label, stock list). The app builds one tab per market.
+MARKETS = {
+    "SG": ("🇸🇬 Singapore", SG_STOCKS),
+    "US": ("🇺🇸 United States", US_STOCKS),
+}
+
+ALL_STOCKS = [(code, t, n) for code, (_, lst) in MARKETS.items() for (t, n) in lst]
