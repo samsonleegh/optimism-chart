@@ -57,8 +57,11 @@ def tabs(active: str) -> str:
 
 
 def chart_page(result, code) -> str:
-    body = (f"<p><a href='{('index' if code == FIRST else code.lower())}.html'>&larr; back</a></p>"
-            f"<img src='charts/{html.escape(result.ticker)}.png'>")
+    # this page lives in site/charts/, so back-link goes up one level and the
+    # image sits alongside it in the same directory.
+    back = "index.html" if code == FIRST else f"{code.lower()}.html"
+    body = (f"<p><a href='../{back}'>&larr; back</a></p>"
+            f"<img src='{html.escape(result.ticker)}.png'>")
     return page(f"{result.name} ({result.ticker})", body)
 
 
