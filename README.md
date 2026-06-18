@@ -25,6 +25,38 @@ above/below the line → refit) so peaks/troughs are not hand-picked.
 
 Two market tabs: **🇸🇬 Singapore** and **🇺🇸 United States**.
 
+## 🧠 Smart Money tab (experimental)
+A separate **Smart Money Scoreboard** tab tries out a different idea: ranking
+stocks by **buying vs selling pressure** instead of long-run valuation.
+
+True "successful ask vs bid volume" (volume that transacts at the ask = aggressive
+buying, vs at the bid = aggressive selling) is tick / order-flow data and is **not**
+in the free Yahoo feed. So it's **approximated from each daily OHLCV bar** by where
+the close sits in the day's range (`smartmoney.buy_sell_volume`):
+
+```
+buy_fraction = (Close - Low) / (High - Low)   # closed near the high -> bought up
+buy_volume   = Volume * buy_fraction          # proxy "successful ask volume"
+sell_volume  = Volume * (1 - buy_fraction)    # proxy "successful bid volume"
+```
+
+Rolled up with classic accumulation indicators (Chaikin Money Flow, A/D line, OBV,
+relative volume) and trend/momentum (EMA20/50, MACD, RSI) into two 0–100 scores:
+
+- **Smart Money Score** — overall buy/sell pressure → **BUY ≥ 65 · SELL ≤ 40**.
+- **Accumulation Score** — volume/flow only (is smart money quietly accumulating?).
+- **⭐ High-conviction** when the score ≥ 85.
+
+The board ranks every name strongest→weakest, shows a **Market Risk Meter**
+(🟢/🟡/🔴 from STI trend, VIX, overnight S&P), and each stock links to a detail
+page with an ATR-based **next-day trading plan** (entry zone, breakout, stop,
+T1/T2, risk/reward). Tune weights/thresholds at the top of `smartmoney.py`.
+
+> These are **heuristics on delayed daily data**, not an order-book feed.
+> Reported block trades and the closing-auction tape (in the original wishlist)
+> aren't available from the free source, so they're omitted rather than faked.
+> **Not investment advice.**
+
 ## Run locally (live server)
 ```bash
 python3 -m venv .venv
@@ -53,6 +85,7 @@ Build the static site locally too: `.venv/bin/python build_static.py` → open `
 
 ## Files
 - `optimism.py`     — engine: fit channel (`fit_channel`), evaluate price (`evaluate`), chart PNG (`make_chart`).
+- `smartmoney.py`   — Smart Money engine: ask/bid volume proxy (`buy_sell_volume`), scoreboard (`analyze`), risk meter (`market_risk`).
 - `tickers.py`      — `MARKETS` = SG + US universes. Add `(ticker, name)` pairs to widen.
 - `app.py`          — live Flask dashboard, tabs, split-cadence scheduler.
 - `build_static.py` — static-site generator for GitHub Pages.
