@@ -91,18 +91,18 @@ def _refresh_smartmoney() -> None:
     for market, ticker, name in ALL_STOCKS:
         try:
             res, df = smartmoney.compute(ticker, name=name)
-            png = smartmoney.make_chart(res, df)
+            chart = smartmoney.make_chart(res, df)
             with _lock:
                 e = _cache.setdefault(ticker, {"name": name, "market": market,
                                                "channel": None, "result": None,
                                                "png": None, "error": None})
-                e["smart"], e["smart_png"], e["smart_error"] = res, png, None
+                e["smart"], e["smart_chart"], e["smart_error"] = res, chart, None
         except Exception as exc:
             with _lock:
                 e = _cache.setdefault(ticker, {"name": name, "market": market,
                                                "channel": None, "result": None,
                                                "png": None, "error": None})
-                e["smart"], e["smart_png"], e["smart_error"] = None, None, str(exc)
+                e["smart"], e["smart_chart"], e["smart_error"] = None, None, str(exc)
             traceback.print_exc()
         time.sleep(0.3)  # be gentle with the data source
     try:
@@ -375,7 +375,7 @@ SMART_DETAIL_HTML = """
 <!doctype html><html><head><meta charset="utf-8"><title>{{r.name}} — Smart Money</title>
 <meta http-equiv="refresh" content="120">
 <style>
- body{font-family:-apple-system,sans-serif;margin:24px;color:#1f2933;background:#f7f9fb;max-width:760px}
+ body{font-family:-apple-system,sans-serif;margin:24px;color:#1f2933;background:#f7f9fb;max-width:1000px}
  a{color:#5b2c83} h1{margin:0 0 2px}
  .rec{font-weight:700;padding:3px 12px;border-radius:12px;color:#fff}
  .BUY{background:#27ae60}.SELL{background:#c0392b}.HOLD{background:#f39c12}
@@ -390,7 +390,7 @@ SMART_DETAIL_HTML = """
 <p>Last {{'%.4g'|format(r.last_price)}} ({{'%+.1f'|format(r.change_pct)}}%) ·
    <span class="rec {{r.recommendation}}">{{r.recommendation}}</span>
    {% if r.high_conviction %}⭐ high-conviction{% endif %}</p>
-<img src="/smartmoney/{{r.ticker}}.png" style="max-width:100%;box-shadow:0 1px 4px #0002;border-radius:8px">
+<div style="background:#fff;border-radius:8px;box-shadow:0 1px 4px #0002;padding:6px">{{ chart|safe }}</div>
 <div class="card">
  <div class="big">{{'%.0f'|format(r.smart_money_score)}}<span style="font-size:16px;color:#999">/100 Smart Money</span></div>
  <table>
@@ -431,16 +431,8 @@ def smartmoney_detail(ticker):
         abort(404)
     return render_template_string(SMART_DETAIL_HTML, r=res,
                                   market=entry.get("market", ""),
+                                  chart=entry.get("smart_chart") or "",
                                   flow_window=smartmoney.FLOW_WINDOW)
-
-
-@app.route("/smartmoney/<ticker>.png")
-def smartmoney_png(ticker):
-    with _lock:
-        entry = _cache.get(ticker)
-    if not entry or not entry.get("smart_png"):
-        abort(404)
-    return Response(entry["smart_png"], mimetype="image/png")
 
 
 _start_worker_once()

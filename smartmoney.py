@@ -31,10 +31,8 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-import matplotlib
-matplotlib.use("Agg")  # headless / server-safe
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 
 # ---- recommendation thresholds on the Smart Money Score (0-100) -----------
@@ -329,87 +327,96 @@ def compute(ticker: str, name: str | None = None) -> tuple[SmartMoneyResult, pd.
     return analyze(ticker, name=name, df=df), df
 
 
-def make_chart(result: SmartMoneyResult, df: pd.DataFrame, months: int = 6) -> bytes:
-    """Render the technical indicators behind the score as a multi-panel PNG."""
-    close, high, low, vol = df["Close"], df["High"], df["Low"], df["Volume"]
+def make_chart(result: SmartMoneyResult, df: pd.DataFrame, months: int = 6) -> str:
+    """Interactive Plotly chart of the indicators behind the score.
+
+    Returns an HTML fragment (a <div> + the plotly.js CDN script) to embed in a
+    page. Hover gives a unified crosshair across all four panels; drag to zoom,
+    double-click to reset, click legend entries to toggle traces.
+    """
+    close, high, low = df["Close"], df["High"], df["Low"]
     e20, e50 = ema(close, 20), ema(close, 50)
     rsi_s = rsi(close)
     m_line, m_sig, m_hist = macd(close)
     buy_vol, sell_vol = buy_sell_volume(df)
 
     n = min(len(df), max(60, months * 21))
-    sl = slice(-n, None)
-    d = df.index[sl]
+    d = df.iloc[-n:]
+    x = d.index
     rec_color = {"BUY": "#27ae60", "SELL": "#c0392b", "HOLD": "#f39c12"}[result.recommendation]
 
-    fig, (axp, axv, axr, axm) = plt.subplots(
-        4, 1, sharex=True, figsize=(11, 10),
-        gridspec_kw={"height_ratios": [3.0, 1.2, 1.2, 1.4], "hspace": 0.08})
+    fig = make_subplots(
+        rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.035,
+        row_heights=[0.46, 0.16, 0.17, 0.21],
+        subplot_titles=("Price · EMA20/50 · plan levels",
+                        "Proxy ask (buy-up) vs bid (sell-down) volume", "RSI", "MACD"))
 
-    # --- price + moving averages + plan levels ---
-    axp.plot(d, close.iloc[sl], color="#2c3e50", lw=1.3, label="Close", zorder=4)
-    axp.plot(d, e20.iloc[sl], color="#e67e22", lw=1.1, label="EMA20")
-    axp.plot(d, e50.iloc[sl], color="#2980b9", lw=1.1, label="EMA50")
-    axp.axhline(result.resistance, color="#c0392b", ls="--", lw=0.9, alpha=0.7, label="Resistance")
-    axp.axhline(result.support, color="#1e8449", ls="--", lw=0.9, alpha=0.7, label="Support")
-    axp.axhspan(result.entry_low, result.entry_high, color="#27ae60", alpha=0.08)
-    axp.axhline(result.stop_loss, color="#c0392b", ls=":", lw=0.9, alpha=0.6, label="Stop")
-    for tgt in (result.target1, result.target2):
-        axp.axhline(tgt, color="#1e8449", ls=":", lw=0.9, alpha=0.6)
-    axp.scatter([d[-1]], [result.last_price], s=55, color=rec_color,
-                edgecolor="white", linewidth=1.2, zorder=5)
-    axp.set_ylabel("Price")
-    axp.legend(loc="upper left", fontsize=8, ncol=3, framealpha=0.9)
-    axp.set_title(
-        f"{result.name} ({result.ticker})  —  Smart Money {result.smart_money_score:.0f}/100  "
-        f"→  {result.recommendation}\nAsk-vol {result.buy_ratio:.0f}%  ·  "
-        f"Accum {result.accumulation_score:.0f}  ·  RSI {result.rsi:.0f}  ·  MACD {result.macd_cross}",
-        fontsize=12, color=rec_color, fontweight="bold")
-    axp.grid(True, which="both", alpha=0.2)
+    # --- price candlesticks + moving averages ---
+    fig.add_trace(go.Candlestick(
+        x=x, open=d["Open"], high=d["High"], low=d["Low"], close=d["Close"],
+        name="OHLC", increasing_line_color="#27ae60", decreasing_line_color="#c0392b",
+        showlegend=False), row=1, col=1)
+    fig.add_trace(go.Scatter(x=x, y=e20.iloc[-n:], name="EMA20",
+                             line=dict(color="#e67e22", width=1.3)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=x, y=e50.iloc[-n:], name="EMA50",
+                             line=dict(color="#2980b9", width=1.3)), row=1, col=1)
+    for y, clr, txt, dash in [(result.resistance, "#c0392b", "Resistance", "dash"),
+                              (result.support, "#1e8449", "Support", "dash"),
+                              (result.stop_loss, "#c0392b", "Stop", "dot"),
+                              (result.target1, "#1e8449", "T1", "dot"),
+                              (result.target2, "#1e8449", "T2", "dot")]:
+        fig.add_hline(y=y, line=dict(color=clr, width=1, dash=dash), opacity=0.5,
+                      annotation_text=txt, annotation_position="top left",
+                      annotation_font_size=10, row=1, col=1)
+    fig.add_hrect(y0=result.entry_low, y1=result.entry_high, fillcolor="#27ae60",
+                  opacity=0.08, line_width=0, row=1, col=1)
 
     # --- proxy ask (buy-up) vs bid (sell-down) volume: the core idea ---
-    w = 0.9
-    axv.bar(d, sell_vol.iloc[sl], width=w, color="#e74c3c", label="Bid vol (sell-down)")
-    axv.bar(d, buy_vol.iloc[sl], width=w, bottom=sell_vol.iloc[sl],
-            color="#27ae60", label="Ask vol (buy-up)")
-    axv.set_ylabel("Volume")
-    axv.legend(loc="upper left", fontsize=7, framealpha=0.9)
-    axv.grid(True, alpha=0.2)
+    fig.add_trace(go.Bar(x=x, y=sell_vol.iloc[-n:], name="Bid vol (sell-down)",
+                         marker_color="#e74c3c"), row=2, col=1)
+    fig.add_trace(go.Bar(x=x, y=buy_vol.iloc[-n:], name="Ask vol (buy-up)",
+                         marker_color="#27ae60"), row=2, col=1)
 
     # --- RSI ---
-    axr.plot(d, rsi_s.iloc[sl], color="#8e44ad", lw=1.1)
-    axr.axhline(70, color="#c0392b", ls="--", lw=0.8, alpha=0.6)
-    axr.axhline(30, color="#1e8449", ls="--", lw=0.8, alpha=0.6)
-    axr.set_ylim(0, 100)
-    axr.set_ylabel("RSI")
-    axr.grid(True, alpha=0.2)
+    fig.add_trace(go.Scatter(x=x, y=rsi_s.iloc[-n:], name="RSI",
+                             line=dict(color="#8e44ad", width=1.3), showlegend=False),
+                  row=3, col=1)
+    fig.add_hline(y=70, line=dict(color="#c0392b", width=0.8, dash="dash"), opacity=0.5, row=3, col=1)
+    fig.add_hline(y=30, line=dict(color="#1e8449", width=0.8, dash="dash"), opacity=0.5, row=3, col=1)
 
     # --- MACD ---
-    hist = m_hist.iloc[sl]
-    axm.bar(d, hist, width=w, color=["#27ae60" if v >= 0 else "#c0392b" for v in hist], alpha=0.5)
-    axm.plot(d, m_line.iloc[sl], color="#2c3e50", lw=1.0, label="MACD")
-    axm.plot(d, m_sig.iloc[sl], color="#e67e22", lw=1.0, label="Signal")
-    axm.axhline(0, color="#888", lw=0.7)
-    axm.set_ylabel("MACD")
-    axm.legend(loc="upper left", fontsize=7, framealpha=0.9)
-    axm.grid(True, alpha=0.2)
+    hist = m_hist.iloc[-n:]
+    fig.add_trace(go.Bar(x=x, y=hist, name="Histogram", showlegend=False, opacity=0.5,
+                         marker_color=["#27ae60" if v >= 0 else "#c0392b" for v in hist]),
+                  row=4, col=1)
+    fig.add_trace(go.Scatter(x=x, y=m_line.iloc[-n:], name="MACD",
+                             line=dict(color="#2c3e50", width=1.2)), row=4, col=1)
+    fig.add_trace(go.Scatter(x=x, y=m_sig.iloc[-n:], name="Signal",
+                             line=dict(color="#e67e22", width=1.2)), row=4, col=1)
 
-    axm.xaxis.set_major_locator(mdates.MonthLocator())
-    axm.xaxis.set_major_formatter(mdates.DateFormatter("%b %y"))
-    axm.set_xlabel("Date")
-    fig.align_ylabels([axp, axv, axr, axm])
+    fig.update_layout(
+        barmode="stack", hovermode="x unified", template="plotly_white",
+        height=820, margin=dict(l=55, r=20, t=70, b=30),
+        legend=dict(orientation="h", y=1.05, x=0, font=dict(size=11)),
+        title=dict(text=(f"{result.name} ({result.ticker})  —  Smart Money "
+                         f"{result.smart_money_score:.0f}/100  →  {result.recommendation}"),
+                   font=dict(size=15, color=rec_color)))
+    fig.update_xaxes(rangeslider_visible=False,
+                     rangebreaks=[dict(bounds=["sat", "mon"])])  # hide weekend gaps
+    fig.update_yaxes(title_text="Price", row=1, col=1)
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
+    fig.update_yaxes(title_text="RSI", range=[0, 100], row=3, col=1)
+    fig.update_yaxes(title_text="MACD", row=4, col=1)
 
-    import io
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=105, bbox_inches="tight")
-    plt.close(fig)
-    return buf.getvalue()
+    return fig.to_html(full_html=False, include_plotlyjs="cdn",
+                       config=dict(displaylogo=False, responsive=True, scrollZoom=True),
+                       default_height="820px")
 
 
 if __name__ == "__main__":
     import json
     res, df = compute("O39.SI", name="OCBC")
-    with open("ocbc_smartmoney.png", "wb") as f:
-        f.write(make_chart(res, df))
+    with open("ocbc_smartmoney.html", "w") as f:
+        f.write("<!doctype html><meta charset='utf-8'>" + make_chart(res, df))
     print(json.dumps(res.as_dict(), indent=2))
-    print("saved ocbc_smartmoney.png")
+    print("saved ocbc_smartmoney.html")

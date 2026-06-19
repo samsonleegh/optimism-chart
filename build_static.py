@@ -132,7 +132,7 @@ def risk_banner(risk) -> str:
             f"&nbsp; STI {html.escape(risk.sti_trend)}{vix}{sp}{notes}</div>")
 
 
-def smart_detail_page(r, code) -> str:
+def smart_detail_page(r, code, chart_html) -> str:
     back = smart_file(code)
     body = (
         f"<p><a href='../{back}'>&larr; back to Smart Money</a> · "
@@ -141,7 +141,7 @@ def smart_detail_page(r, code) -> str:
         f"<p>Last {r.last_price:.4g} ({r.change_pct:+.1f}%) · "
         f"<span class='rec {r.recommendation}'>{r.recommendation}</span> "
         f"{'⭐ high-conviction' if r.high_conviction else ''}</p>"
-        f"<img src='{html.escape(r.ticker)}.png'>"
+        f"<div style='background:#fff;border-radius:8px;box-shadow:0 1px 4px #0002;padding:6px'>{chart_html}</div>"
         f"<div class='card'><div class='big'>{r.smart_money_score:.0f}"
         f"<span style='font-size:16px;color:#999'>/100 Smart Money</span></div><table>"
         f"<tr><td>Accumulation score</td><td>{r.accumulation_score:.0f}/100</td></tr>"
@@ -228,10 +228,9 @@ def build() -> None:
             # Smart Money scoreboard (separate daily-OHLCV fetch)
             try:
                 sres, sdf = smartmoney.compute(ticker, name=name)
-                with open(os.path.join(SMART, f"{ticker}.png"), "wb") as f:
-                    f.write(smartmoney.make_chart(sres, sdf))
+                chart_html = smartmoney.make_chart(sres, sdf)
                 with open(os.path.join(SMART, f"{ticker}.html"), "w") as f:
-                    f.write(smart_detail_page(sres, code))
+                    f.write(smart_detail_page(sres, code, chart_html))
                 smart_results.append(sres)
                 print(f"  {code} {ticker:10s} SM {sres.smart_money_score:5.0f}  {sres.recommendation}")
             except Exception as exc:
