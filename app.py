@@ -90,18 +90,19 @@ def _refresh_smartmoney() -> None:
     global _last_smart, _market_risk
     for market, ticker, name in ALL_STOCKS:
         try:
-            res = smartmoney.analyze(ticker, name=name)
+            res, df = smartmoney.compute(ticker, name=name)
+            png = smartmoney.make_chart(res, df)
             with _lock:
                 e = _cache.setdefault(ticker, {"name": name, "market": market,
                                                "channel": None, "result": None,
                                                "png": None, "error": None})
-                e["smart"], e["smart_error"] = res, None
+                e["smart"], e["smart_png"], e["smart_error"] = res, png, None
         except Exception as exc:
             with _lock:
                 e = _cache.setdefault(ticker, {"name": name, "market": market,
                                                "channel": None, "result": None,
                                                "png": None, "error": None})
-                e["smart"], e["smart_error"] = None, str(exc)
+                e["smart"], e["smart_png"], e["smart_error"] = None, None, str(exc)
             traceback.print_exc()
         time.sleep(0.3)  # be gentle with the data source
     try:
@@ -389,6 +390,7 @@ SMART_DETAIL_HTML = """
 <p>Last {{'%.4g'|format(r.last_price)}} ({{'%+.1f'|format(r.change_pct)}}%) ·
    <span class="rec {{r.recommendation}}">{{r.recommendation}}</span>
    {% if r.high_conviction %}⭐ high-conviction{% endif %}</p>
+<img src="/smartmoney/{{r.ticker}}.png" style="max-width:100%;box-shadow:0 1px 4px #0002;border-radius:8px">
 <div class="card">
  <div class="big">{{'%.0f'|format(r.smart_money_score)}}<span style="font-size:16px;color:#999">/100 Smart Money</span></div>
  <table>
@@ -430,6 +432,15 @@ def smartmoney_detail(ticker):
     return render_template_string(SMART_DETAIL_HTML, r=res,
                                   market=entry.get("market", ""),
                                   flow_window=smartmoney.FLOW_WINDOW)
+
+
+@app.route("/smartmoney/<ticker>.png")
+def smartmoney_png(ticker):
+    with _lock:
+        entry = _cache.get(ticker)
+    if not entry or not entry.get("smart_png"):
+        abort(404)
+    return Response(entry["smart_png"], mimetype="image/png")
 
 
 _start_worker_once()

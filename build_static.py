@@ -141,6 +141,7 @@ def smart_detail_page(r, code) -> str:
         f"<p>Last {r.last_price:.4g} ({r.change_pct:+.1f}%) · "
         f"<span class='rec {r.recommendation}'>{r.recommendation}</span> "
         f"{'⭐ high-conviction' if r.high_conviction else ''}</p>"
+        f"<img src='{html.escape(r.ticker)}.png'>"
         f"<div class='card'><div class='big'>{r.smart_money_score:.0f}"
         f"<span style='font-size:16px;color:#999'>/100 Smart Money</span></div><table>"
         f"<tr><td>Accumulation score</td><td>{r.accumulation_score:.0f}/100</td></tr>"
@@ -226,7 +227,9 @@ def build() -> None:
                 traceback.print_exc()
             # Smart Money scoreboard (separate daily-OHLCV fetch)
             try:
-                sres = smartmoney.analyze(ticker, name=name)
+                sres, sdf = smartmoney.compute(ticker, name=name)
+                with open(os.path.join(SMART, f"{ticker}.png"), "wb") as f:
+                    f.write(smartmoney.make_chart(sres, sdf))
                 with open(os.path.join(SMART, f"{ticker}.html"), "w") as f:
                     f.write(smart_detail_page(sres, code))
                 smart_results.append(sres)
