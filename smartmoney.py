@@ -31,6 +31,11 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
+import matplotlib
+matplotlib.use("Agg")  # headless / server-safe
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
 
 # ---- recommendation thresholds on the Smart Money Score (0-100) -----------
 BUY_ABOVE = 65.0     # strong net accumulation -> BUY
@@ -318,7 +323,93 @@ def market_risk() -> MarketRisk:
     return MarketRisk(rating=rating, sti_trend=sti_trend, vix=vix, sp_change=sp, notes=notes)
 
 
+def compute(ticker: str, name: str | None = None) -> tuple[SmartMoneyResult, pd.DataFrame]:
+    """Fetch once, return the scoreboard row and the OHLCV frame (for charting)."""
+    df = fetch_ohlcv(ticker)
+    return analyze(ticker, name=name, df=df), df
+
+
+def make_chart(result: SmartMoneyResult, df: pd.DataFrame, months: int = 6) -> bytes:
+    """Render the technical indicators behind the score as a multi-panel PNG."""
+    close, high, low, vol = df["Close"], df["High"], df["Low"], df["Volume"]
+    e20, e50 = ema(close, 20), ema(close, 50)
+    rsi_s = rsi(close)
+    m_line, m_sig, m_hist = macd(close)
+    buy_vol, sell_vol = buy_sell_volume(df)
+
+    n = min(len(df), max(60, months * 21))
+    sl = slice(-n, None)
+    d = df.index[sl]
+    rec_color = {"BUY": "#27ae60", "SELL": "#c0392b", "HOLD": "#f39c12"}[result.recommendation]
+
+    fig, (axp, axv, axr, axm) = plt.subplots(
+        4, 1, sharex=True, figsize=(11, 10),
+        gridspec_kw={"height_ratios": [3.0, 1.2, 1.2, 1.4], "hspace": 0.08})
+
+    # --- price + moving averages + plan levels ---
+    axp.plot(d, close.iloc[sl], color="#2c3e50", lw=1.3, label="Close", zorder=4)
+    axp.plot(d, e20.iloc[sl], color="#e67e22", lw=1.1, label="EMA20")
+    axp.plot(d, e50.iloc[sl], color="#2980b9", lw=1.1, label="EMA50")
+    axp.axhline(result.resistance, color="#c0392b", ls="--", lw=0.9, alpha=0.7, label="Resistance")
+    axp.axhline(result.support, color="#1e8449", ls="--", lw=0.9, alpha=0.7, label="Support")
+    axp.axhspan(result.entry_low, result.entry_high, color="#27ae60", alpha=0.08)
+    axp.axhline(result.stop_loss, color="#c0392b", ls=":", lw=0.9, alpha=0.6, label="Stop")
+    for tgt in (result.target1, result.target2):
+        axp.axhline(tgt, color="#1e8449", ls=":", lw=0.9, alpha=0.6)
+    axp.scatter([d[-1]], [result.last_price], s=55, color=rec_color,
+                edgecolor="white", linewidth=1.2, zorder=5)
+    axp.set_ylabel("Price")
+    axp.legend(loc="upper left", fontsize=8, ncol=3, framealpha=0.9)
+    axp.set_title(
+        f"{result.name} ({result.ticker})  —  Smart Money {result.smart_money_score:.0f}/100  "
+        f"→  {result.recommendation}\nAsk-vol {result.buy_ratio:.0f}%  ·  "
+        f"Accum {result.accumulation_score:.0f}  ·  RSI {result.rsi:.0f}  ·  MACD {result.macd_cross}",
+        fontsize=12, color=rec_color, fontweight="bold")
+    axp.grid(True, which="both", alpha=0.2)
+
+    # --- proxy ask (buy-up) vs bid (sell-down) volume: the core idea ---
+    w = 0.9
+    axv.bar(d, sell_vol.iloc[sl], width=w, color="#e74c3c", label="Bid vol (sell-down)")
+    axv.bar(d, buy_vol.iloc[sl], width=w, bottom=sell_vol.iloc[sl],
+            color="#27ae60", label="Ask vol (buy-up)")
+    axv.set_ylabel("Volume")
+    axv.legend(loc="upper left", fontsize=7, framealpha=0.9)
+    axv.grid(True, alpha=0.2)
+
+    # --- RSI ---
+    axr.plot(d, rsi_s.iloc[sl], color="#8e44ad", lw=1.1)
+    axr.axhline(70, color="#c0392b", ls="--", lw=0.8, alpha=0.6)
+    axr.axhline(30, color="#1e8449", ls="--", lw=0.8, alpha=0.6)
+    axr.set_ylim(0, 100)
+    axr.set_ylabel("RSI")
+    axr.grid(True, alpha=0.2)
+
+    # --- MACD ---
+    hist = m_hist.iloc[sl]
+    axm.bar(d, hist, width=w, color=["#27ae60" if v >= 0 else "#c0392b" for v in hist], alpha=0.5)
+    axm.plot(d, m_line.iloc[sl], color="#2c3e50", lw=1.0, label="MACD")
+    axm.plot(d, m_sig.iloc[sl], color="#e67e22", lw=1.0, label="Signal")
+    axm.axhline(0, color="#888", lw=0.7)
+    axm.set_ylabel("MACD")
+    axm.legend(loc="upper left", fontsize=7, framealpha=0.9)
+    axm.grid(True, alpha=0.2)
+
+    axm.xaxis.set_major_locator(mdates.MonthLocator())
+    axm.xaxis.set_major_formatter(mdates.DateFormatter("%b %y"))
+    axm.set_xlabel("Date")
+    fig.align_ylabels([axp, axv, axr, axm])
+
+    import io
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=105, bbox_inches="tight")
+    plt.close(fig)
+    return buf.getvalue()
+
+
 if __name__ == "__main__":
     import json
-    res = analyze("O39.SI", name="OCBC")
+    res, df = compute("O39.SI", name="OCBC")
+    with open("ocbc_smartmoney.png", "wb") as f:
+        f.write(make_chart(res, df))
     print(json.dumps(res.as_dict(), indent=2))
+    print("saved ocbc_smartmoney.png")
