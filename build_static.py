@@ -92,12 +92,12 @@ def smart_tabs(active: str) -> str:
     return f"<div class='tabs smart'>{links}</div>"
 
 
-def chart_page(result, code) -> str:
-    # this page lives in site/charts/, so back-link goes up one level and the
-    # image sits alongside it in the same directory.
+def chart_page(result, code, chart_html) -> str:
+    # this page lives in site/charts/, so the back-link goes up one level.
     back = "index.html" if code == FIRST else f"{code.lower()}.html"
     body = (f"<p><a href='../{back}'>&larr; back</a></p>"
-            f"<img src='{html.escape(result.ticker)}.png'>")
+            f"<div style='background:#fff;border-radius:8px;box-shadow:0 1px 4px #0002;padding:6px'>"
+            f"{chart_html}</div>")
     return page(f"{result.name} ({result.ticker})", body)
 
 
@@ -215,11 +215,9 @@ def build() -> None:
         for ticker, name in stocks:
             try:
                 result, channel = optimism.compute(ticker, name=name)
-                png = optimism.make_chart(result, channel)
-                with open(os.path.join(CHARTS, f"{ticker}.png"), "wb") as f:
-                    f.write(png)
+                chart_html = optimism.make_chart(result, channel)
                 with open(os.path.join(CHARTS, f"{ticker}.html"), "w") as f:
-                    f.write(chart_page(result, code))
+                    f.write(chart_page(result, code, chart_html))
                 results.append(result)
                 print(f"  {code} {ticker:10s} {result.optimism:5.0f}%  {result.recommendation}")
             except Exception as exc:

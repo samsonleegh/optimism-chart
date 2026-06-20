@@ -16,7 +16,7 @@ import time
 import traceback
 from datetime import datetime, timezone
 
-from flask import Flask, Response, render_template_string, abort, request
+from flask import Flask, render_template_string, abort, request
 
 import optimism
 import smartmoney
@@ -73,9 +73,9 @@ def _refresh_prices() -> None:
         try:
             price, date = optimism.latest_quote(ticker)
             result = optimism.evaluate(e["channel"], price, date)
-            png = optimism.make_chart(result, e["channel"])
+            chart = optimism.make_chart(result, e["channel"])
             with _lock:
-                e["result"], e["png"], e["error"] = result, png, None
+                e["result"], e["chart"], e["error"] = result, chart, None
         except Exception as exc:
             with _lock:
                 e["error"] = str(exc)
@@ -233,11 +233,10 @@ def dashboard():
 
 CHART_HTML = """
 <!doctype html><html><head><meta charset="utf-8"><title>{{name}}</title>
-<meta http-equiv="refresh" content="60">
-<style>body{font-family:-apple-system,sans-serif;margin:24px;text-align:center}
+<style>body{font-family:-apple-system,sans-serif;margin:24px;color:#1f2933;background:#f7f9fb;max-width:1000px}
 a{color:#2c3e50}</style></head><body>
 <p><a href="/?market={{market}}">&larr; back to {{market}} stocks</a></p>
-<img src="/chart/{{ticker}}.png" style="max-width:100%;box-shadow:0 1px 4px #0002;border-radius:8px">
+<div style="background:#fff;border-radius:8px;box-shadow:0 1px 4px #0002;padding:6px">{{chart|safe}}</div>
 </body></html>
 """
 
@@ -249,16 +248,8 @@ def chart_page(ticker):
     if not entry:
         abort(404)
     return render_template_string(CHART_HTML, ticker=ticker, name=entry["name"],
-                                  market=entry.get("market", ""))
-
-
-@app.route("/chart/<ticker>.png")
-def chart_png(ticker):
-    with _lock:
-        entry = _cache.get(ticker)
-    if not entry or not entry.get("png"):
-        abort(404)
-    return Response(entry["png"], mimetype="image/png")
+                                  market=entry.get("market", ""),
+                                  chart=entry.get("chart") or "Chart not ready yet — refresh shortly.")
 
 
 SMART_HTML = """

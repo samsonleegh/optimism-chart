@@ -27,17 +27,13 @@ straighten power-law growth, which is not the optimism-chart model.
 
 from __future__ import annotations
 
-import io
 from dataclasses import dataclass, asdict
 
 import numpy as np
 import pandas as pd
 import yfinance as yf
 
-import matplotlib
-matplotlib.use("Agg")  # headless / server-safe
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
+import plotly.graph_objects as go
 
 
 # ---- thresholds for the recommendation -----------------------------------
@@ -200,63 +196,62 @@ def compute(ticker: str, name: str | None = None,
 
 
 _LINE_STYLE = {
-    100: ("#c0392b", "100% Optimism (peaks)", 2.0, "-"),
-    75:  ("#e67e22", "75% Optimism", 1.2, "--"),
-    50:  ("#7f8c8d", "50% Optimism (fair value)", 1.4, "-"),
-    25:  ("#27ae60", "25% Optimism", 1.2, "--"),
-    0:   ("#1e8449", "0% Optimism (troughs)", 2.0, "-"),
+    100: ("#c0392b", "100% Optimism (peaks)", "solid", 2.0),
+    75:  ("#e67e22", "75% Optimism", "dash", 1.2),
+    50:  ("#7f8c8d", "50% Optimism (fair value)", "solid", 1.4),
+    25:  ("#27ae60", "25% Optimism", "dash", 1.2),
+    0:   ("#1e8449", "0% Optimism (troughs)", "solid", 2.0),
 }
 
 
-def make_chart(result: OptimismResult, channel: Channel) -> bytes:
-    """Render the optimism chart as PNG bytes (cheap: reuses the fitted channel)."""
+def make_chart(result: OptimismResult, channel: Channel) -> str:
+    """Interactive Plotly optimism chart, returned as an embeddable HTML fragment.
+
+    Close price and the five channel lines on a log-price axis. Hover for a
+    unified readout, drag to zoom, click legend entries to toggle lines.
+    """
     prices = channel.prices
     x = channel.x
     dates = prices.index
     lines = channel.lines
-
-    fig, ax = plt.subplots(figsize=(11, 6.5))
-    ax.plot(dates, prices.to_numpy(dtype=float), color="#2c3e50", lw=1.1,
-            label="Close price", zorder=3)
-
-    for pct in (100, 75, 50, 25, 0):
-        color, lbl, lw, ls = _LINE_STYLE[pct]
-        ax.plot(dates, lines[pct].price_at(x), color=color, lw=lw, ls=ls,
-                label=lbl, zorder=2)
-
-    # live price marker (may be fresher than the last weekly close)
     rec_color = {"BUY": "#27ae60", "SELL": "#c0392b", "HOLD": "#f39c12"}[result.recommendation]
-    ax.scatter([pd.Timestamp(result.end)], [result.last_price], s=55, zorder=5,
-               color=rec_color, edgecolor="white", linewidth=1.2,
-               label=f"Now {result.last_price:g} ({result.optimism:.0f}%)")
 
-    ax.set_yscale("log")
-    ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}"))
-    ax.xaxis.set_major_locator(mdates.YearLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    fig = go.Figure()
+    for pct in (100, 75, 50, 25, 0):
+        color, lbl, dash, w = _LINE_STYLE[pct]
+        fig.add_trace(go.Scatter(
+            x=dates, y=lines[pct].price_at(x), name=lbl,
+            line=dict(color=color, width=w, dash=dash),
+            hovertemplate="%{y:.4g}<extra>" + lbl + "</extra>"))
+    fig.add_trace(go.Scatter(
+        x=dates, y=prices.to_numpy(dtype=float), name="Close price",
+        line=dict(color="#2c3e50", width=1.4),
+        hovertemplate="%{y:.4g}<extra>Close</extra>"))
+    fig.add_trace(go.Scatter(
+        x=[pd.Timestamp(result.end)], y=[result.last_price], mode="markers",
+        name=f"Now {result.last_price:g} ({result.optimism:.0f}%)",
+        marker=dict(size=12, color=rec_color, line=dict(color="white", width=1.5)),
+        hovertemplate="%{y:.4g}<extra>Now</extra>"))
 
-    ax.set_title(
-        f"{result.name} ({result.ticker})  —  Optimism Chart (log price, 10y)\n"
-        f"Last {result.last_price:g}   Optimism {result.optimism:.0f}%   "
-        f"→  {result.recommendation}",
-        fontsize=12, color=rec_color, fontweight="bold")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Price (log scale)")
-    ax.grid(True, which="both", alpha=0.2)
-    ax.legend(loc="upper left", fontsize=8, framealpha=0.9)
-    fig.tight_layout()
+    fig.update_yaxes(type="log", title="Price (log scale)")
+    fig.update_xaxes(title="Year")
+    fig.update_layout(
+        hovermode="x unified", template="plotly_white", height=560,
+        margin=dict(l=55, r=20, t=60, b=40),
+        legend=dict(orientation="h", y=1.04, x=0, font=dict(size=10)),
+        title=dict(text=(f"{result.name} ({result.ticker})  —  Optimism "
+                         f"{result.optimism:.0f}%  →  {result.recommendation}  ·  log price, 10y"),
+                   font=dict(size=14, color=rec_color)))
 
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=110)
-    plt.close(fig)
-    return buf.getvalue()
+    return fig.to_html(full_html=False, include_plotlyjs="cdn",
+                       config=dict(displaylogo=False, responsive=True, scrollZoom=True),
+                       default_height="560px")
 
 
 if __name__ == "__main__":
     res, channel = compute("O39.SI", name="OCBC")
-    png = make_chart(res, channel)
-    with open("ocbc_optimism.png", "wb") as f:
-        f.write(png)
+    with open("ocbc_optimism.html", "w") as f:
+        f.write("<!doctype html><meta charset='utf-8'>" + make_chart(res, channel))
     import json
     print(json.dumps(res.as_dict(), indent=2))
-    print("saved ocbc_optimism.png")
+    print("saved ocbc_optimism.html")
