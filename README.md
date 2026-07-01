@@ -3,21 +3,23 @@
 Optimism-channel charts and BUY / HOLD / SELL signals for SG (SGX) stocks.
 
 ## What it does
-For each stock, on a **log-price** chart over 10 years it fits a straight
-trend channel:
+For each stock, on a **log-price** chart over 10 years it fits a straight,
+**parallel** trend channel (following Dr Tee's / Ein55 optimism method):
 
-| Line | Meaning |
+| Line | How it's drawn |
 |------|---------|
-| **100%** | best-fit line through the **peaks** (expensive) |
-| **0%**   | best-fit line through the **troughs** (cheap) |
-| **50%**  | midway — fair value |
-| **75% / 25%** | midway of the upper / lower halves |
+| **50%** (P50) | **drawn first** — least-squares regression line through log-price (the central "fair value" trend; it balances the area above and below) |
+| **100%** (P100) | **parallel** to P50, lifted to rest on the **peaks** (expensive) |
+| **0%** (P0) | **parallel** to P50, dropped to rest on the **troughs** (cheap) |
+| **75% / 25%** | midway P50↔P100 and P0↔P50 |
 
-The latest price's position in the channel = **optimism %**.
-`≤25%` → **BUY**, `≥75%` → **SELL**, else **HOLD** (thresholds in `optimism.py`).
+All five lines share **one slope**, so the channel is parallel. P100/P0 are
+anchored on **≥2 peaks/troughs that are ≥~6 months apart**, so a single
+speculative spike doesn't set the channel (a conservative fit). Tune
+`PEAK_MIN_SEP_WEEKS` / `N_ANCHORS` in `optimism.py`.
 
-Channel lines are found by *iterative envelope regression* (fit OLS → keep points
-above/below the line → refit) so peaks/troughs are not hand-picked.
+The latest price's position in the channel = **optimism %** (0% at P0, 100% at
+P100, linear in log-price). `≤25%` → **BUY**, `≥75%` → **SELL**, else **HOLD**.
 
 > Axis note: "log-log" was requested, but the trend model is exponential growth,
 > which is a straight line on a **log-price axis vs linear time** (semi-log).

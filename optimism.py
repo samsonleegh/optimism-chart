@@ -7,15 +7,18 @@ Work in log-price space:  y = ln(price),  x = time in years from the series star
 A stock that compounds at a steady rate is a straight line in this space, so the
 trend channel lines are straight lines (they render straight on a log-price axis).
 
-  * 100% optimism line = straight line fit through the PEAKS  (upper envelope)
-  *   0% optimism line = straight line fit through the TROUGHS (lower envelope)
-  *  50% optimism line = midway between the 0% and 100% lines  (in log space)
-  *  75% optimism line = midway between the 50% and 100% lines
-  *  25% optimism line = midway between the 0% and 50% lines
+  * 50%  optimism line (P50) = least-squares regression line through log-price.
+        This is the central trend, drawn FIRST; it balances the area above and
+        below (a regression line has mean residual zero). Its slope sets the
+        channel — every other line is PARALLEL to it.
+  * 100% optimism line (P100) = parallel line lifted to rest on the PEAKS.
+  *   0% optimism line (P0)   = parallel line dropped to rest on the TROUGHS.
+  * 75%  = midway between P50 and P100;  25% = midway between P0 and P50.
 
-The envelope lines are found by *iterative envelope regression*: fit OLS, keep only
-the points above (resp. below) the line, refit, repeat. This converges to a straight
-line resting on the peaks (resp. troughs) without hand-picking points.
+Following Dr Tee's (Ein55) worksheet, P100/P0 are anchored on at least two
+peaks/troughs that are >= ~6 months apart, so a single speculative spike does
+not set the channel (a conservative fit). All five lines share one slope, so
+they are parallel and render as a straight channel on a log-price axis.
 
 Optimism of the latest price = where it sits inside the channel, 0% at the trough
 line, 100% at the peak line. Cheap (low optimism) -> BUY, expensive (high) -> SELL.
@@ -72,20 +75,41 @@ class OptimismResult:
         return asdict(self)
 
 
-def fit_envelope(x: np.ndarray, y: np.ndarray, upper: bool, iters: int = 12) -> ChannelLine:
-    """Iterative envelope regression -> straight line resting on peaks/troughs."""
-    slope, intercept = np.polyfit(x, y, 1)
-    for _ in range(iters):
-        resid = y - (slope * x + intercept)
-        mask = resid >= 0 if upper else resid <= 0
-        if mask.sum() < 2:
+# --- parallel-channel anchoring (Dr Tee's peaks/troughs rule) ---------------
+PEAK_MIN_SEP_WEEKS = 26   # peaks/troughs must be >= ~6 months apart
+N_ANCHORS = 2             # rest the line on >= 2 peaks/troughs (avoid lone spike)
+
+
+def _anchor_intercept(resid: np.ndarray, upper: bool,
+                      min_sep: int = PEAK_MIN_SEP_WEEKS, k: int = N_ANCHORS) -> float:
+    """Intercept of the parallel line resting on the k-th most extreme, well-separated
+    local peak (upper) or trough (lower) of the residual series.
+
+    `resid = y - slope*x`, so a horizontal level in residual space is a line of the
+    channel's slope in price space. Picking the k-th extreme (k=2) that is >= min_sep
+    bars from the more-extreme ones means the line rests on >= 2 peaks/troughs rather
+    than a single speculative spike.
+    """
+    n = len(resid)
+    win = max(1, min_sep // 2)
+    # local extrema of the residual series within a +/- win window
+    cand = []
+    for i in range(n):
+        lo, hi = max(0, i - win), min(n, i + win + 1)
+        seg = resid[lo:hi]
+        if (resid[i] >= seg.max()) if upper else (resid[i] <= seg.min()):
+            cand.append(i)
+    # greedily take the most extreme candidates that are >= min_sep apart
+    cand.sort(key=(lambda j: -resid[j]) if upper else (lambda j: resid[j]))
+    chosen: list[int] = []
+    for i in cand:
+        if all(abs(i - c) >= min_sep for c in chosen):
+            chosen.append(i)
+        if len(chosen) >= k:
             break
-        new_slope, new_intercept = np.polyfit(x[mask], y[mask], 1)
-        if np.isclose(new_slope, slope) and np.isclose(new_intercept, intercept):
-            slope, intercept = new_slope, new_intercept
-            break
-        slope, intercept = new_slope, new_intercept
-    return ChannelLine(float(slope), float(intercept))
+    if not chosen:
+        return float(resid.max() if upper else resid.min())
+    return float(resid[chosen[-1]])   # rest on the k-th (confirmed) anchor
 
 
 def fetch_prices(ticker: str, period: str = "10y", interval: str = "1wk") -> pd.Series:
@@ -124,19 +148,25 @@ def fit_channel(ticker: str, name: str | None = None,
     x = (dates - dates[0]).days.to_numpy(dtype=float) / 365.25
     y = np.log(prices.to_numpy(dtype=float))
 
-    line100 = fit_envelope(x, y, upper=True)
-    line0 = fit_envelope(x, y, upper=False)
-    line50 = ChannelLine((line0.slope + line100.slope) / 2,
-                         (line0.intercept + line100.intercept) / 2)
-    line75 = ChannelLine((line50.slope + line100.slope) / 2,
-                         (line50.intercept + line100.intercept) / 2)
-    line25 = ChannelLine((line0.slope + line50.slope) / 2,
-                         (line0.intercept + line50.intercept) / 2)
+    # P50 = least-squares regression line (central trend, area-balanced). Its slope
+    # sets the whole channel; all other lines are parallel (same slope).
+    slope, b50 = (float(v) for v in np.polyfit(x, y, 1))
+    resid = y - slope * x                    # level of the parallel line through each point
+
+    b100 = _anchor_intercept(resid, upper=True)    # rest on the peaks
+    b0 = _anchor_intercept(resid, upper=False)     # rest on the troughs
+    # keep the ordering sane if anchoring is degenerate (short/erratic series)
+    b100 = max(b100, b50)
+    b0 = min(b0, b50)
+    b75 = (b50 + b100) / 2                    # midway P50..P100
+    b25 = (b0 + b50) / 2                      # midway P0..P50
+
+    lines = {pct: ChannelLine(slope, b) for pct, b in
+             ((0, b0), (25, b25), (50, b50), (75, b75), (100, b100))}
 
     return Channel(
         ticker=ticker, name=name or ticker, start=dates[0],
-        lines={0: line0, 25: line25, 50: line50, 75: line75, 100: line100},
-        prices=prices, x=x,
+        lines=lines, prices=prices, x=x,
     )
 
 
