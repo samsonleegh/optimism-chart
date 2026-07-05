@@ -76,12 +76,12 @@ class OptimismResult:
 
 
 # --- parallel-channel anchoring (Dr Tee's peaks/troughs rule) ---------------
-PEAK_MIN_SEP_WEEKS = 26   # peaks/troughs must be >= ~6 months apart
+PEAK_MIN_SEP_DAYS = 182   # peaks/troughs must be >= ~6 months apart (long-term)
 N_ANCHORS = 2             # rest the line on >= 2 peaks/troughs (avoid lone spike)
 
 
 def _anchor_intercept(resid: np.ndarray, upper: bool,
-                      min_sep: int = PEAK_MIN_SEP_WEEKS, k: int = N_ANCHORS) -> float:
+                      min_sep: int = 26, k: int = N_ANCHORS) -> float:
     """Intercept of the parallel line resting on the k-th most extreme, well-separated
     local peak (upper) or trough (lower) of the residual series.
 
@@ -137,8 +137,11 @@ class Channel:
 
 def fit_channel(ticker: str, name: str | None = None,
                 period: str = "10y", interval: str = "1wk",
-                prices: pd.Series | None = None) -> Channel:
-    """Fit the optimism channel. This is the part that needs full 10y history."""
+                prices: pd.Series | None = None,
+                min_sep_days: float = PEAK_MIN_SEP_DAYS) -> Channel:
+    """Fit the optimism channel. `min_sep_days` = how far apart (calendar days) the
+    peaks/troughs that anchor P0/P100 must be; converted to bars from the data's own
+    spacing so it works for weekly (10y) or daily (1y) series alike."""
     if prices is None:
         prices = fetch_prices(ticker, period, interval)
     if len(prices) < 20:
@@ -148,13 +151,17 @@ def fit_channel(ticker: str, name: str | None = None,
     x = (dates - dates[0]).days.to_numpy(dtype=float) / 365.25
     y = np.log(prices.to_numpy(dtype=float))
 
+    # peak/trough separation in calendar days -> number of bars for this series
+    days_per_bar = (x[-1] - x[0]) * 365.25 / max(1, len(x) - 1)
+    min_sep = max(2, int(round(min_sep_days / max(days_per_bar, 1e-9))))
+
     # P50 = least-squares regression line (central trend, area-balanced). Its slope
     # sets the whole channel; all other lines are parallel (same slope).
     slope, b50 = (float(v) for v in np.polyfit(x, y, 1))
     resid = y - slope * x                    # level of the parallel line through each point
 
-    b100 = _anchor_intercept(resid, upper=True)    # rest on the peaks
-    b0 = _anchor_intercept(resid, upper=False)     # rest on the troughs
+    b100 = _anchor_intercept(resid, upper=True, min_sep=min_sep)    # rest on the peaks
+    b0 = _anchor_intercept(resid, upper=False, min_sep=min_sep)     # rest on the troughs
     # keep the ordering sane if anchoring is degenerate (short/erratic series)
     b100 = max(b100, b50)
     b0 = min(b0, b50)
@@ -234,11 +241,12 @@ _LINE_STYLE = {
 }
 
 
-def make_chart(result: OptimismResult, channel: Channel) -> str:
+def make_chart(result: OptimismResult, channel: Channel, span_label: str = "10y") -> str:
     """Interactive Plotly optimism chart, returned as an embeddable HTML fragment.
 
     Close price and the five channel lines on a log-price axis. Hover for a
     unified readout, drag to zoom, click legend entries to toggle lines.
+    `span_label` (e.g. "10y" / "1y") only labels the chart title.
     """
     prices = channel.prices
     x = channel.x
@@ -270,7 +278,7 @@ def make_chart(result: OptimismResult, channel: Channel) -> str:
         margin=dict(l=55, r=20, t=60, b=40),
         legend=dict(orientation="h", y=1.04, x=0, font=dict(size=10)),
         title=dict(text=(f"{result.name} ({result.ticker})  —  Optimism "
-                         f"{result.optimism:.0f}%  →  {result.recommendation}  ·  log price, 10y"),
+                         f"{result.optimism:.0f}%  →  {result.recommendation}  ·  log price, {span_label}"),
                    font=dict(size=14, color=rec_color)))
 
     return fig.to_html(full_html=False, include_plotlyjs="cdn",

@@ -21,6 +21,10 @@ speculative spike doesn't set the channel (a conservative fit). Tune
 The latest price's position in the channel = **optimism %** (0% at P0, 100% at
 P100, linear in log-price). `≤25%` → **BUY**, `≥75%` → **SELL**, else **HOLD**.
 
+Each stock's chart page shows the **10-year** channel and, below it, a **1-year
+(short-term)** channel (same parallel-channel method, daily data, peaks/troughs
+≥~6 weeks apart) — a long- and short-term read like Dr Tee's LT/ST views.
+
 > Axis note: "log-log" was requested, but the trend model is exponential growth,
 > which is a straight line on a **log-price axis vs linear time** (semi-log).
 > A log time axis would only straighten power-law growth. Change in `make_chart`.
