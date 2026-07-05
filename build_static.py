@@ -92,12 +92,14 @@ def smart_tabs(active: str) -> str:
     return f"<div class='tabs smart'>{links}</div>"
 
 
-def chart_page(result, code, chart_html) -> str:
+def chart_page(result, code, chart_html, chart_1y_html="") -> str:
     # this page lives in site/charts/, so the back-link goes up one level.
     back = "index.html" if code == FIRST else f"{code.lower()}.html"
-    body = (f"<p><a href='../{back}'>&larr; back</a></p>"
-            f"<div style='background:#fff;border-radius:8px;box-shadow:0 1px 4px #0002;padding:6px'>"
-            f"{chart_html}</div>")
+    card = "background:#fff;border-radius:8px;box-shadow:0 1px 4px #0002;padding:6px"
+    body = f"<p><a href='../{back}'>&larr; back</a></p>" \
+           f"<div style='{card};margin-bottom:16px'>{chart_html}</div>"
+    if chart_1y_html:
+        body += f"<div style='{card}'>{chart_1y_html}</div>"
     return page(f"{result.name} ({result.ticker})", body)
 
 
@@ -213,26 +215,37 @@ def build() -> None:
     for code, (label, stocks) in MARKETS.items():
         results, smart_results = [], []
         for ticker, name in stocks:
+            # Smart Money (1y daily) first — its OHLCV also feeds the 1y optimism chart.
+            sdf = None
+            try:
+                sres, sdf = smartmoney.compute(ticker, name=name)
+                with open(os.path.join(SMART, f"{ticker}.html"), "w") as f:
+                    f.write(smart_detail_page(sres, code, smartmoney.make_chart(sres, sdf)))
+                smart_results.append(sres)
+                print(f"  {code} {ticker:10s} SM {sres.smart_money_score:5.0f}  {sres.recommendation}")
+            except Exception as exc:
+                print(f"  {code} {ticker:10s} SM ERROR {exc}")
+            # Optimism: 10y weekly + 1y daily (short-term, reusing the Smart Money data)
             try:
                 result, channel = optimism.compute(ticker, name=name)
-                chart_html = optimism.make_chart(result, channel)
+                chart10 = optimism.make_chart(result, channel, span_label="10y")
+                chart1 = ""
+                if sdf is not None and len(sdf) >= 20:
+                    try:
+                        ch1 = optimism.fit_channel(ticker, name=name,
+                                                   prices=sdf["Close"], min_sep_days=45)
+                        r1 = optimism.evaluate(ch1, float(sdf["Close"].iloc[-1]),
+                                               sdf["Close"].index[-1])
+                        chart1 = optimism.make_chart(r1, ch1, span_label="1y")
+                    except Exception as exc:
+                        print(f"  {code} {ticker:10s} 1y ERROR {exc}")
                 with open(os.path.join(CHARTS, f"{ticker}.html"), "w") as f:
-                    f.write(chart_page(result, code, chart_html))
+                    f.write(chart_page(result, code, chart10, chart1))
                 results.append(result)
                 print(f"  {code} {ticker:10s} {result.optimism:5.0f}%  {result.recommendation}")
             except Exception as exc:
                 print(f"  {code} {ticker:10s} ERROR {exc}")
                 traceback.print_exc()
-            # Smart Money scoreboard (separate daily-OHLCV fetch)
-            try:
-                sres, sdf = smartmoney.compute(ticker, name=name)
-                chart_html = smartmoney.make_chart(sres, sdf)
-                with open(os.path.join(SMART, f"{ticker}.html"), "w") as f:
-                    f.write(smart_detail_page(sres, code, chart_html))
-                smart_results.append(sres)
-                print(f"  {code} {ticker:10s} SM {sres.smart_money_score:5.0f}  {sres.recommendation}")
-            except Exception as exc:
-                print(f"  {code} {ticker:10s} SM ERROR {exc}")
             time.sleep(0.3)
         fname = opt_file(code)
         with open(os.path.join(OUT, fname), "w") as f:

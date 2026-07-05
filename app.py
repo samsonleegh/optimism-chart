@@ -44,17 +44,24 @@ def _refresh_channels() -> None:
     global _last_channel
     for market, ticker, name in ALL_STOCKS:
         try:
-            channel = optimism.fit_channel(ticker, name=name)
+            channel = optimism.fit_channel(ticker, name=name)          # 10y weekly
+            try:                                                        # 1y daily (short-term)
+                channel_1y = optimism.fit_channel(ticker, name=name, period="1y",
+                                                  interval="1d", min_sep_days=45)
+            except Exception:
+                channel_1y = None
             with _lock:
                 e = _cache.setdefault(ticker, {"name": name, "market": market,
                                                "result": None, "png": None})
                 e["channel"] = channel
+                e["channel_1y"] = channel_1y
                 e["error"] = None
         except Exception as exc:
             with _lock:
                 e = _cache.setdefault(ticker, {"name": name, "market": market,
                                                "result": None, "png": None})
                 e["channel"] = None
+                e["channel_1y"] = None
                 e["error"] = str(exc)
             traceback.print_exc()
         time.sleep(0.4)  # be gentle with the data source
@@ -73,9 +80,14 @@ def _refresh_prices() -> None:
         try:
             price, date = optimism.latest_quote(ticker)
             result = optimism.evaluate(e["channel"], price, date)
-            chart = optimism.make_chart(result, e["channel"])
+            chart = optimism.make_chart(result, e["channel"], span_label="10y")
+            chart_1y = ""
+            c1 = e.get("channel_1y")
+            if c1 is not None:
+                r1 = optimism.evaluate(c1, price, date)
+                chart_1y = optimism.make_chart(r1, c1, span_label="1y")
             with _lock:
-                e["result"], e["chart"], e["error"] = result, chart, None
+                e["result"], e["chart"], e["chart_1y"], e["error"] = result, chart, chart_1y, None
         except Exception as exc:
             with _lock:
                 e["error"] = str(exc)
@@ -236,7 +248,8 @@ CHART_HTML = """
 <style>body{font-family:-apple-system,sans-serif;margin:24px;color:#1f2933;background:#f7f9fb;max-width:1000px}
 a{color:#2c3e50}</style></head><body>
 <p><a href="/?market={{market}}">&larr; back to {{market}} stocks</a></p>
-<div style="background:#fff;border-radius:8px;box-shadow:0 1px 4px #0002;padding:6px">{{chart|safe}}</div>
+<div style="background:#fff;border-radius:8px;box-shadow:0 1px 4px #0002;padding:6px;margin-bottom:16px">{{chart|safe}}</div>
+{% if chart_1y %}<div style="background:#fff;border-radius:8px;box-shadow:0 1px 4px #0002;padding:6px">{{chart_1y|safe}}</div>{% endif %}
 </body></html>
 """
 
@@ -249,7 +262,8 @@ def chart_page(ticker):
         abort(404)
     return render_template_string(CHART_HTML, ticker=ticker, name=entry["name"],
                                   market=entry.get("market", ""),
-                                  chart=entry.get("chart") or "Chart not ready yet — refresh shortly.")
+                                  chart=entry.get("chart") or "Chart not ready yet — refresh shortly.",
+                                  chart_1y=entry.get("chart_1y") or "")
 
 
 SMART_HTML = """
