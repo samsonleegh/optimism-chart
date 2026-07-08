@@ -400,6 +400,7 @@ SMART_DETAIL_HTML = """
  <div class="big">{{'%.0f'|format(r.smart_money_score)}}<span style="font-size:16px;color:#999">/100 Smart Money</span></div>
  <table>
   <tr><td>Accumulation score</td><td>{{'%.0f'|format(r.accumulation_score)}}/100</td></tr>
+  <tr><td>Entry quality (MACD-near-zero + volume)</td><td>{{'%.0f'|format(r.entry_score)}}/100</td></tr>
   <tr><td>Proxy ask (buy-up) volume, last {{flow_window}}d</td><td>{{'%.0f'|format(r.buy_ratio)}}%</td></tr>
   <tr><td>Chaikin Money Flow (20d)</td><td>{{'%+.3f'|format(r.cmf)}}</td></tr>
   <tr><td>Relative volume (vs 20d avg)</td><td>{{'%.2f'|format(r.rel_volume)}}×</td></tr>
