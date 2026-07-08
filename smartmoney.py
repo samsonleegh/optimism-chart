@@ -77,9 +77,15 @@ def _clip01(v: float) -> float:
 
 # --------------------------- the ask/bid split -----------------------------
 def buy_sell_volume(df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
-    """Proxy split of each bar's volume into ask-side (buy) and bid-side (sell)."""
+    """Proxy split of each bar's volume into ask-side (buy) and bid-side (sell).
+
+    Uses the *typical price* (High+Low+Close)/3 rather than the raw close as the
+    reference (a "weighted" price is more representative of the day than the close
+    alone), so a single closing print can't peg the day at a full 0% or 100%.
+    """
     rng = (df["High"] - df["Low"]).replace(0.0, np.nan)
-    buy_frac = ((df["Close"] - df["Low"]) / rng).fillna(0.5).clip(0.0, 1.0)
+    typical = (df["High"] + df["Low"] + df["Close"]) / 3.0
+    buy_frac = ((typical - df["Low"]) / rng).fillna(0.5).clip(0.0, 1.0)
     buy_vol = df["Volume"] * buy_frac
     sell_vol = df["Volume"] * (1.0 - buy_frac)
     return buy_vol, sell_vol
@@ -131,6 +137,7 @@ class SmartMoneyResult:
     resistance: float
     smart_money_score: float   # 0-100
     accumulation_score: float  # 0-100
+    entry_score: float         # 0-100 (MACD-near-zero + volume timing)
     confidence: float          # 0-100 (used for ranking)
     recommendation: str        # BUY / HOLD / SELL
     high_conviction: bool
@@ -215,9 +222,29 @@ def analyze(ticker: str, name: str | None = None,
     macd_score = 100.0 if macd_cross == "bull" else 0.0 if macd_cross == "bear" else 50.0
     momentum_score = 0.6 * rsi_score + 0.4 * macd_score
 
-    smart = (0.30 * flow_score + 0.18 * cmf_score + 0.12 * obv_score +
-             0.10 * ad_score + 0.15 * trend_score + 0.15 * momentum_score)
-    accumulation = 0.40 * flow_score + 0.25 * cmf_score + 0.20 * obv_score + 0.15 * ad_score
+    # ---- entry-quality: MACD crossover near/below the zero line + volume ----
+    # A bullish MACD cross is a better *entry* when it happens near/below zero (early
+    # in a move) than when it's already extended high above zero. Measure the MACD
+    # line's distance from zero in its own std units, and reward volume confirmation.
+    macd_std = float(m_line.tail(60).std()) or 1e-9
+    z = float(m_line.iloc[-1]) / macd_std                 # <0 = below zero line
+    if macd_cross == "bull":
+        macd_timing = _clip01(100.0 - 30.0 * max(z, 0.0))  # near/below zero -> 100
+    elif macd_cross == "bear":
+        macd_timing = 20.0
+    else:
+        macd_timing = 50.0
+    vol_conf = _clip01(50.0 * min(rel_volume, 2.0))        # 1x -> 50, >=2x -> 100
+    entry_score = 0.6 * macd_timing + 0.4 * vol_conf
+
+    # Weights: the daily proxy buy-ratio (flow) is downweighted (it's inferred from
+    # H/L/C, not real order flow); weight shifts to the smoothed CMF and the new
+    # entry-quality signal.
+    smart = (0.22 * cmf_score + 0.10 * flow_score + 0.12 * obv_score +
+             0.10 * ad_score + 0.15 * trend_score + 0.13 * momentum_score +
+             0.18 * entry_score)
+    accumulation = (0.35 * cmf_score + 0.25 * obv_score +
+                    0.25 * ad_score + 0.15 * flow_score)
 
     # relative-volume confirmation: conviction grows when the move has volume
     confidence = _clip01(smart * (0.85 + 0.15 * min(rel_volume, 2.0)))
@@ -242,6 +269,7 @@ def analyze(ticker: str, name: str | None = None,
         ema20=round(e20, 4), ema50=round(e50, 4), trend=trend,
         candlestick=_candlestick(df), support=round(support, 4), resistance=round(resistance, 4),
         smart_money_score=round(smart, 1), accumulation_score=round(accumulation, 1),
+        entry_score=round(entry_score, 1),
         confidence=round(confidence, 1), recommendation=rec,
         high_conviction=bool(smart >= HIGH_CONVICTION),
         entry_low=round(last - 0.5 * a, 4), entry_high=round(last, 4),
@@ -331,14 +359,18 @@ def make_chart(result: SmartMoneyResult, df: pd.DataFrame, months: int = 6) -> s
     """Interactive Plotly chart of the indicators behind the score.
 
     Returns an HTML fragment (a <div> + the plotly.js CDN script) to embed in a
-    page. Hover gives a unified crosshair across all four panels; drag to zoom,
+    page. Hover gives a unified crosshair across all five panels; drag to zoom,
     double-click to reset, click legend entries to toggle traces.
     """
-    close, high, low = df["Close"], df["High"], df["Low"]
+    close, high, low, vol = df["Close"], df["High"], df["Low"], df["Volume"]
     e20, e50 = ema(close, 20), ema(close, 50)
     rsi_s = rsi(close)
     m_line, m_sig, m_hist = macd(close)
     buy_vol, sell_vol = buy_sell_volume(df)
+    # Chaikin Money Flow oscillator (rolling), to read against price direction
+    mfm = ((close - low) - (high - close)) / (high - low).replace(0.0, np.nan)
+    mfv = mfm.fillna(0.0) * vol
+    cmf_s = mfv.rolling(CMF_WINDOW).sum() / vol.rolling(CMF_WINDOW).sum()
 
     n = min(len(df), max(60, months * 21))
     d = df.iloc[-n:]
@@ -346,10 +378,11 @@ def make_chart(result: SmartMoneyResult, df: pd.DataFrame, months: int = 6) -> s
     rec_color = {"BUY": "#27ae60", "SELL": "#c0392b", "HOLD": "#f39c12"}[result.recommendation]
 
     fig = make_subplots(
-        rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.035,
-        row_heights=[0.46, 0.16, 0.17, 0.21],
+        rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.03,
+        row_heights=[0.38, 0.14, 0.15, 0.18, 0.15],
         subplot_titles=("Price · EMA20/50 · plan levels",
-                        "Proxy ask (buy-up) vs bid (sell-down) volume", "RSI", "MACD"))
+                        "Proxy ask (buy-up) vs bid (sell-down) volume", "RSI", "MACD",
+                        "Chaikin Money Flow (20d)"))
 
     # --- price candlesticks + moving averages ---
     fig.add_trace(go.Candlestick(
@@ -394,10 +427,19 @@ def make_chart(result: SmartMoneyResult, df: pd.DataFrame, months: int = 6) -> s
     fig.add_trace(go.Scatter(x=x, y=m_sig.iloc[-n:], name="Signal",
                              line=dict(color="#e67e22", width=1.2)), row=4, col=1)
 
+    # --- Chaikin Money Flow oscillator (read vs price direction) ---
+    cmf_tail = cmf_s.iloc[-n:]
+    fig.add_trace(go.Scatter(x=x, y=cmf_tail, name="CMF", fill="tozeroy",
+                             line=dict(color="#8e44ad", width=1.2),
+                             fillcolor="rgba(142,68,173,0.15)", showlegend=False), row=5, col=1)
+    fig.add_hline(y=0, line=dict(color="#888", width=0.8), row=5, col=1)
+    fig.add_hline(y=0.05, line=dict(color="#27ae60", width=0.7, dash="dot"), opacity=0.5, row=5, col=1)
+    fig.add_hline(y=-0.05, line=dict(color="#c0392b", width=0.7, dash="dot"), opacity=0.5, row=5, col=1)
+
     fig.update_layout(
         barmode="stack", hovermode="x unified", template="plotly_white",
-        height=820, margin=dict(l=55, r=20, t=70, b=30),
-        legend=dict(orientation="h", y=1.05, x=0, font=dict(size=11)),
+        height=960, margin=dict(l=55, r=20, t=70, b=30),
+        legend=dict(orientation="h", y=1.04, x=0, font=dict(size=11)),
         title=dict(text=(f"{result.name} ({result.ticker})  —  Smart Money "
                          f"{result.smart_money_score:.0f}/100  →  {result.recommendation}"),
                    font=dict(size=15, color=rec_color)))
@@ -407,10 +449,11 @@ def make_chart(result: SmartMoneyResult, df: pd.DataFrame, months: int = 6) -> s
     fig.update_yaxes(title_text="Volume", row=2, col=1)
     fig.update_yaxes(title_text="RSI", range=[0, 100], row=3, col=1)
     fig.update_yaxes(title_text="MACD", row=4, col=1)
+    fig.update_yaxes(title_text="CMF", row=5, col=1)
 
     return fig.to_html(full_html=False, include_plotlyjs="cdn",
                        config=dict(displaylogo=False, responsive=True, scrollZoom=True),
-                       default_height="820px")
+                       default_height="960px")
 
 
 if __name__ == "__main__":

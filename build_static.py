@@ -147,6 +147,7 @@ def smart_detail_page(r, code, chart_html) -> str:
         f"<div class='card'><div class='big'>{r.smart_money_score:.0f}"
         f"<span style='font-size:16px;color:#999'>/100 Smart Money</span></div><table>"
         f"<tr><td>Accumulation score</td><td>{r.accumulation_score:.0f}/100</td></tr>"
+        f"<tr><td>Entry quality (MACD-near-zero + volume)</td><td>{r.entry_score:.0f}/100</td></tr>"
         f"<tr><td>Proxy ask (buy-up) volume, last {smartmoney.FLOW_WINDOW}d</td><td>{r.buy_ratio:.0f}%</td></tr>"
         f"<tr><td>Chaikin Money Flow (20d)</td><td>{r.cmf:+.3f}</td></tr>"
         f"<tr><td>Relative volume (vs 20d avg)</td><td>{r.rel_volume:.2f}×</td></tr>"
