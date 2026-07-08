@@ -20,6 +20,7 @@ from flask import Flask, render_template_string, abort, request
 
 import optimism
 import smartmoney
+import methodology
 from tickers import MARKETS, ALL_STOCKS
 
 PRICE_REFRESH_MINUTES = 15     # latest price + optimism % + chart
@@ -187,6 +188,7 @@ DASH_HTML = """
  <a href="/?market={{code}}" class="{{'active' if code==market else ''}}">{{label}}</a>
  {% endfor %}
  <a href="/smartmoney?market={{market}}" style="background:#5b2c83">🧠 Smart Money</a>
+ <a href="/methodology" style="background:#33415c;color:#fff">📖 Methodology</a>
 </div>
 <table>
 <tr><th>Stock</th><th>Last</th><th>Optimism</th><th></th><th>Fair (50%)</th><th>Call</th></tr>
@@ -254,6 +256,21 @@ a{color:#2c3e50}</style></head><body>
 """
 
 
+METHOD_HTML = """
+<!doctype html><html><head><meta charset="utf-8"><title>Methodology — Optimism Charts</title>
+<style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:24px;color:#1f2933;background:#f7f9fb}
+a{color:#5b2c83}</style></head><body>
+<p><a href="/">&larr; back to dashboard</a></p>
+{{ body|safe }}
+</body></html>
+"""
+
+
+@app.route("/methodology")
+def methodology_page():
+    return render_template_string(METHOD_HTML, body=methodology.body_html())
+
+
 @app.route("/chart/<ticker>")
 def chart_page(ticker):
     with _lock:
@@ -311,6 +328,7 @@ SMART_HTML = """
  <a href="/smartmoney?market={{code}}" class="{{'active' if code==market else ''}}">{{label}}</a>
  {% endfor %}
  <a href="/?market={{market}}" style="background:#dfe6ee;color:#445">← Optimism</a>
+ <a href="/methodology" style="background:#33415c;color:#fff">📖 Methodology</a>
 </div>
 <table>
 <tr><th>#</th><th>Stock</th><th>Last</th><th>Chg%</th><th>RSI</th><th>MACD</th>

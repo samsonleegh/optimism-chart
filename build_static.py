@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 
 import optimism
 import smartmoney
+import methodology
 from tickers import MARKETS
 
 OUT = "site"
@@ -80,6 +81,7 @@ def tabs(active: str) -> str:
         f"class='{'active' if code == active else ''}'>{html.escape(label)}</a>"
         for code, (label, _) in MARKETS.items())
     links += f"<a href='{smart_file(active)}' class='smartlink'>🧠 Smart Money</a>"
+    links += "<a href='methodology.html' style='background:#33415c;color:#fff'>📖 Methodology</a>"
     return f"<div class='tabs'>{links}</div>"
 
 
@@ -89,6 +91,7 @@ def smart_tabs(active: str) -> str:
         f"class='{'active' if code == active else ''}'>{html.escape(label)}</a>"
         for code, (label, _) in MARKETS.items())
     links += f"<a href='{opt_file(active)}' style='background:#dfe6ee;color:#445'>← Optimism</a>"
+    links += "<a href='methodology.html' style='background:#33415c;color:#fff'>📖 Methodology</a>"
     return f"<div class='tabs smart'>{links}</div>"
 
 
@@ -254,6 +257,12 @@ def build() -> None:
         with open(os.path.join(OUT, smart_file(code)), "w") as f:
             f.write(smart_page(code, label, smart_results, risk, stamp))
         print(f"wrote {OUT}/{fname} ({len(results)} opt, {len(smart_results)} smart)")
+
+    with open(os.path.join(OUT, "methodology.html"), "w") as f:
+        f.write(page("Methodology — Optimism Charts",
+                     f"<p><a href='{opt_file(FIRST)}'>&larr; back to dashboard</a></p>"
+                     + methodology.body_html()))
+    print(f"wrote {OUT}/methodology.html")
 
 
 FIRST = next(iter(MARKETS))

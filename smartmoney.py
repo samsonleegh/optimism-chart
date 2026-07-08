@@ -42,6 +42,12 @@ FLOW_WINDOW = 10     # trading days for the buy/sell (ask/bid) volume split
 CMF_WINDOW = 20      # Chaikin Money Flow window
 HIGH_CONVICTION = 85.0  # score at/above which a name is a "high-conviction" idea
 
+# ---- score weights (single source of truth; each component is 0-100) -------
+# The proxy ask/bid buy-ratio is intentionally absent — it's kept for display only.
+SMART_WEIGHTS = {"cmf": 0.28, "entry": 0.20, "trend": 0.15,
+                 "momentum": 0.13, "obv": 0.14, "ad": 0.10}   # sums to 1.0
+ACCUM_WEIGHTS = {"cmf": 0.45, "obv": 0.30, "ad": 0.25}        # sums to 1.0
+
 
 # --------------------------- indicator helpers -----------------------------
 def ema(s: pd.Series, span: int) -> pd.Series:
@@ -206,7 +212,7 @@ def analyze(ticker: str, name: str | None = None,
     obv = (np.sign(close.diff().fillna(0.0)) * vol).cumsum()
 
     # ---- component sub-scores (each 0-100) ----
-    flow_score = _clip01(buy_ratio)                                   # ask/bid pressure
+    # (the proxy ask/bid buy-ratio is NOT scored — kept for display only)
     cmf_score = _clip01((cmf + 0.2) / 0.4 * 100.0)                    # -0.2..+0.2 -> 0..100
     span = min(20, len(df) - 1)
     obv_norm = (float(obv.iloc[-1]) - float(obv.iloc[-1 - span])) / (avg_vol20 * span)
@@ -237,14 +243,12 @@ def analyze(ticker: str, name: str | None = None,
     vol_conf = _clip01(50.0 * min(rel_volume, 2.0))        # 1x -> 50, >=2x -> 100
     entry_score = 0.6 * macd_timing + 0.4 * vol_conf
 
-    # Weights: the daily proxy buy-ratio (flow) is downweighted (it's inferred from
-    # H/L/C, not real order flow); weight shifts to the smoothed CMF and the new
-    # entry-quality signal.
-    smart = (0.22 * cmf_score + 0.10 * flow_score + 0.12 * obv_score +
-             0.10 * ad_score + 0.15 * trend_score + 0.13 * momentum_score +
-             0.18 * entry_score)
-    accumulation = (0.35 * cmf_score + 0.25 * obv_score +
-                    0.25 * ad_score + 0.15 * flow_score)
+    # The daily proxy buy-ratio is NOT part of the score (inferred from H/L/C, not
+    # real order flow) — its weight went to the smoothed CMF and the entry signal.
+    sub = {"cmf": cmf_score, "obv": obv_score, "ad": ad_score,
+           "trend": trend_score, "momentum": momentum_score, "entry": entry_score}
+    smart = sum(SMART_WEIGHTS[k] * sub[k] for k in SMART_WEIGHTS)
+    accumulation = sum(ACCUM_WEIGHTS[k] * sub[k] for k in ACCUM_WEIGHTS)
 
     # relative-volume confirmation: conviction grows when the move has volume
     confidence = _clip01(smart * (0.85 + 0.15 * min(rel_volume, 2.0)))
