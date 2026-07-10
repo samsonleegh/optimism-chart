@@ -359,12 +359,14 @@ def compute(ticker: str, name: str | None = None) -> tuple[SmartMoneyResult, pd.
     return analyze(ticker, name=name, df=df), df
 
 
-def make_chart(result: SmartMoneyResult, df: pd.DataFrame, months: int = 6) -> str:
+def make_chart(result: SmartMoneyResult, df: pd.DataFrame, months: int = 6,
+               include_plotlyjs="cdn") -> str:
     """Interactive Plotly chart of the indicators behind the score.
 
-    Returns an HTML fragment (a <div> + the plotly.js CDN script) to embed in a
-    page. Hover gives a unified crosshair across all five panels; drag to zoom,
-    double-click to reset, click legend entries to toggle traces.
+    Returns an HTML fragment (a <div> + plotly.js) to embed in a page. Hover gives
+    a unified crosshair across all five panels; drag to zoom, double-click to reset,
+    click legend entries to toggle traces. `include_plotlyjs=True` inlines the
+    library so the page is self-contained (no CDN dependency).
     """
     close, high, low, vol = df["Close"], df["High"], df["Low"], df["Volume"]
     e20, e50 = ema(close, 20), ema(close, 50)
@@ -455,7 +457,7 @@ def make_chart(result: SmartMoneyResult, df: pd.DataFrame, months: int = 6) -> s
     fig.update_yaxes(title_text="MACD", row=4, col=1)
     fig.update_yaxes(title_text="CMF", row=5, col=1)
 
-    return fig.to_html(full_html=False, include_plotlyjs="cdn",
+    return fig.to_html(full_html=False, include_plotlyjs=include_plotlyjs,
                        config=dict(displaylogo=False, responsive=True, scrollZoom=True),
                        default_height="960px")
 

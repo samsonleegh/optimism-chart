@@ -241,12 +241,15 @@ _LINE_STYLE = {
 }
 
 
-def make_chart(result: OptimismResult, channel: Channel, span_label: str = "10y") -> str:
+def make_chart(result: OptimismResult, channel: Channel, span_label: str = "10y",
+               include_plotlyjs="cdn") -> str:
     """Interactive Plotly optimism chart, returned as an embeddable HTML fragment.
 
     Close price and the five channel lines on a log-price axis. Hover for a
     unified readout, drag to zoom, click legend entries to toggle lines.
     `span_label` (e.g. "10y" / "1y") only labels the chart title.
+    `include_plotlyjs`: True inlines the library (self-contained, no CDN needed);
+    False reuses a library already inlined earlier on the same page.
     """
     prices = channel.prices
     x = channel.x
@@ -281,7 +284,7 @@ def make_chart(result: OptimismResult, channel: Channel, span_label: str = "10y"
                          f"{result.optimism:.0f}%  →  {result.recommendation}  ·  log price, {span_label}"),
                    font=dict(size=14, color=rec_color)))
 
-    return fig.to_html(full_html=False, include_plotlyjs="cdn",
+    return fig.to_html(full_html=False, include_plotlyjs=include_plotlyjs,
                        config=dict(displaylogo=False, responsive=True, scrollZoom=True),
                        default_height="560px")
 
