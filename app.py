@@ -16,7 +16,7 @@ import time
 import traceback
 from datetime import datetime, timezone
 
-from flask import Flask, render_template_string, abort, request
+from flask import Flask, Response, render_template_string, abort, request
 
 import optimism
 import smartmoney
@@ -81,12 +81,12 @@ def _refresh_prices() -> None:
         try:
             price, date = optimism.latest_quote(ticker)
             result = optimism.evaluate(e["channel"], price, date)
-            chart = optimism.make_chart(result, e["channel"], span_label="10y")
+            chart = optimism.make_chart(result, e["channel"], span_label="10y", include_plotlyjs="/plotly.min.js")
             chart_1y = ""
             c1 = e.get("channel_1y")
             if c1 is not None:
                 r1 = optimism.evaluate(c1, price, date)
-                chart_1y = optimism.make_chart(r1, c1, span_label="1y")
+                chart_1y = optimism.make_chart(r1, c1, span_label="1y", include_plotlyjs="/plotly.min.js")
             with _lock:
                 e["result"], e["chart"], e["chart_1y"], e["error"] = result, chart, chart_1y, None
         except Exception as exc:
@@ -104,7 +104,7 @@ def _refresh_smartmoney() -> None:
     for market, ticker, name in ALL_STOCKS:
         try:
             res, df = smartmoney.compute(ticker, name=name)
-            chart = smartmoney.make_chart(res, df)
+            chart = smartmoney.make_chart(res, df, include_plotlyjs="/plotly.min.js")
             with _lock:
                 e = _cache.setdefault(ticker, {"name": name, "market": market,
                                                "channel": None, "result": None,
@@ -264,6 +264,19 @@ a{color:#5b2c83}</style></head><body>
 {{ body|safe }}
 </body></html>
 """
+
+
+_PLOTLY_JS = None
+
+
+@app.route("/plotly.min.js")
+def plotly_js():
+    """Serve one shared copy of the plotly library (charts reference /plotly.min.js)."""
+    global _PLOTLY_JS
+    if _PLOTLY_JS is None:
+        import plotly.offline
+        _PLOTLY_JS = plotly.offline.get_plotlyjs()
+    return Response(_PLOTLY_JS, mimetype="application/javascript")
 
 
 @app.route("/methodology")

@@ -210,6 +210,12 @@ def build() -> None:
     os.makedirs(SMART, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
+    # one shared copy of the plotly library at the site root; every chart page
+    # references ../plotly.min.js, so it loads once (cached) with no CDN dependency.
+    import plotly.offline
+    with open(os.path.join(OUT, "plotly.min.js"), "w") as f:
+        f.write(plotly.offline.get_plotlyjs())
+
     try:
         risk = smartmoney.market_risk()
     except Exception:
@@ -224,7 +230,8 @@ def build() -> None:
             try:
                 sres, sdf = smartmoney.compute(ticker, name=name)
                 with open(os.path.join(SMART, f"{ticker}.html"), "w") as f:
-                    f.write(smart_detail_page(sres, code, smartmoney.make_chart(sres, sdf)))
+                    f.write(smart_detail_page(sres, code,
+                            smartmoney.make_chart(sres, sdf, include_plotlyjs="../plotly.min.js")))
                 smart_results.append(sres)
                 print(f"  {code} {ticker:10s} SM {sres.smart_money_score:5.0f}  {sres.recommendation}")
             except Exception as exc:
@@ -232,7 +239,9 @@ def build() -> None:
             # Optimism: 10y weekly + 1y daily (short-term, reusing the Smart Money data)
             try:
                 result, channel = optimism.compute(ticker, name=name)
-                chart10 = optimism.make_chart(result, channel, span_label="10y")
+                # both charts reference the shared local plotly.min.js (no CDN needed)
+                chart10 = optimism.make_chart(result, channel, span_label="10y",
+                                              include_plotlyjs="../plotly.min.js")
                 chart1 = ""
                 if sdf is not None and len(sdf) >= 20:
                     try:
@@ -240,7 +249,8 @@ def build() -> None:
                                                    prices=sdf["Close"], min_sep_days=45)
                         r1 = optimism.evaluate(ch1, float(sdf["Close"].iloc[-1]),
                                                sdf["Close"].index[-1])
-                        chart1 = optimism.make_chart(r1, ch1, span_label="1y")
+                        chart1 = optimism.make_chart(r1, ch1, span_label="1y",
+                                                     include_plotlyjs="../plotly.min.js")
                     except Exception as exc:
                         print(f"  {code} {ticker:10s} 1y ERROR {exc}")
                 with open(os.path.join(CHARTS, f"{ticker}.html"), "w") as f:
