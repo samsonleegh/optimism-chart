@@ -74,8 +74,8 @@ def body_html() -> str:
 from <b>daily/weekly OHLCV</b> (open/high/low/close/volume) — there is no paid feed.</p>
 
 <div class="box warn"><b>Not investment advice.</b> These are heuristics on delayed,
-free data (Yahoo Finance). The Optimism chart follows Dr Tee's (Ein55) published method;
-the Smart Money score is our own experimental construction.</div>
+free data (Yahoo Finance). The Optimism chart follows a published parallel-channel
+valuation method; the Smart Money score is our own experimental construction.</div>
 
 <h2>1 · Data source</h2>
 <ul>
@@ -88,7 +88,7 @@ the Smart Money score is our own experimental construction.</div>
 
 <h2>2 · Optimism chart (parallel channel)</h2>
 <p>Work in <b>log-price</b> space (<code>y = ln(price)</code>) vs linear time, so steady
-compounding is a straight line. Following Dr Tee's worksheet, the channel is drawn as
+compounding is a straight line. The channel is drawn as
 <b>five parallel lines</b> (one shared slope):</p>
 <ol>
 <li><b>P50 (fair value)</b> — the <b>least-squares regression line</b> through log-price.

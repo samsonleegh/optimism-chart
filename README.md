@@ -4,7 +4,7 @@ Optimism-channel charts and BUY / HOLD / SELL signals for SG (SGX) stocks.
 
 ## What it does
 For each stock, on a **log-price** chart over 10 years it fits a straight,
-**parallel** trend channel (following Dr Tee's / Ein55 optimism method):
+**parallel** trend channel (a parallel-channel optimism method):
 
 | Line | How it's drawn |
 |------|---------|
@@ -23,7 +23,7 @@ P100, linear in log-price). `≤25%` → **BUY**, `≥75%` → **SELL**, else **
 
 Each stock's chart page shows the **10-year** channel and, below it, a **1-year
 (short-term)** channel (same parallel-channel method, daily data, peaks/troughs
-≥~6 weeks apart) — a long- and short-term read like Dr Tee's LT/ST views.
+≥~6 weeks apart) — a long- and short-term read.
 
 > Axis note: "log-log" was requested, but the trend model is exponential growth,
 > which is a straight line on a **log-price axis vs linear time** (semi-log).
