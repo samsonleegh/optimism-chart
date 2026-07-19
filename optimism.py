@@ -15,7 +15,7 @@ trend channel lines are straight lines (they render straight on a log-price axis
   *   0% optimism line (P0)   = parallel line dropped to rest on the TROUGHS.
   * 75%  = midway between P50 and P100;  25% = midway between P0 and P50.
 
-Following Dr Tee's (Ein55) worksheet, P100/P0 are anchored on at least two
+P100/P0 are anchored on at least two
 peaks/troughs that are >= ~6 months apart, so a single speculative spike does
 not set the channel (a conservative fit). All five lines share one slope, so
 they are parallel and render as a straight channel on a log-price axis.
@@ -75,7 +75,7 @@ class OptimismResult:
         return asdict(self)
 
 
-# --- parallel-channel anchoring (Dr Tee's peaks/troughs rule) ---------------
+# --- parallel-channel anchoring (peaks/troughs rule) ------------------------
 PEAK_MIN_SEP_DAYS = 182   # peaks/troughs must be >= ~6 months apart (long-term)
 N_ANCHORS = 2             # rest the line on >= 2 peaks/troughs (avoid lone spike)
 
