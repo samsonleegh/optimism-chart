@@ -14,7 +14,9 @@ from __future__ import annotations
 import threading
 import time
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+
+SGT = timezone(timedelta(hours=8))   # Singapore time (UTC+8, no DST)
 
 from flask import Flask, Response, render_template_string, abort, request
 
@@ -67,7 +69,7 @@ def _refresh_channels() -> None:
             traceback.print_exc()
         time.sleep(0.4)  # be gentle with the data source
     _last_channel = datetime.now(timezone.utc)
-    print(f"[{_last_channel:%H:%M:%S} UTC] re-fit {len(ALL_STOCKS)} channels")
+    print(f"[{_last_channel.astimezone(SGT):%H:%M:%S} SGT] re-fit {len(ALL_STOCKS)} channels")
 
 
 def _refresh_prices() -> None:
@@ -95,7 +97,7 @@ def _refresh_prices() -> None:
             traceback.print_exc()
         time.sleep(0.25)
     _last_price = datetime.now(timezone.utc)
-    print(f"[{_last_price:%H:%M:%S} UTC] refreshed prices")
+    print(f"[{_last_price.astimezone(SGT):%H:%M:%S} SGT] refreshed prices")
 
 
 def _refresh_smartmoney() -> None:
@@ -125,7 +127,7 @@ def _refresh_smartmoney() -> None:
     except Exception:
         traceback.print_exc()
     _last_smart = datetime.now(timezone.utc)
-    print(f"[{_last_smart:%H:%M:%S} UTC] computed smart-money scores")
+    print(f"[{_last_smart.astimezone(SGT):%H:%M:%S} SGT] computed smart-money scores")
 
 
 def _worker() -> None:
@@ -235,8 +237,8 @@ def dashboard():
         ))
     order = {"SELL": 0, "BUY": 1, "HOLD": 2, None: 3}
     rows.sort(key=lambda x: (order.get(x.get("rec"), 3), -(x.get("optimism") or 0)))
-    lp = _last_price.strftime("%Y-%m-%d %H:%M UTC") if _last_price else "pending…"
-    lc = _last_channel.strftime("%Y-%m-%d %H:%M UTC") if _last_channel else "pending…"
+    lp = _last_price.astimezone(SGT).strftime("%Y-%m-%d %H:%M SGT") if _last_price else "pending…"
+    lc = _last_channel.astimezone(SGT).strftime("%Y-%m-%d %H:%M SGT") if _last_channel else "pending…"
     return render_template_string(DASH_HTML, rows=rows, last_price=lp, last_channel=lc,
                                   refresh=PRICE_REFRESH_MINUTES,
                                   market=market, market_label=MARKETS[market][0],
@@ -398,7 +400,7 @@ def smartmoney_board():
             rows.append(d)
     rows.sort(key=lambda r: (r.get("error") is not None, -(r.get("smart_money_score") or 0)))
     risk = risk or smartmoney.MarketRisk(rating="AMBER", notes=["computing…"])
-    ls = _last_smart.strftime("%Y-%m-%d %H:%M UTC") if _last_smart else "pending…"
+    ls = _last_smart.astimezone(SGT).strftime("%Y-%m-%d %H:%M SGT") if _last_smart else "pending…"
     return render_template_string(
         SMART_HTML, rows=rows, risk=risk, last_smart=ls,
         market=market, market_label=MARKETS[market][0],
