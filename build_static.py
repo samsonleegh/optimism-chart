@@ -14,7 +14,9 @@ import os
 import time
 import html
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+
+SGT = timezone(timedelta(hours=8))   # Singapore time (UTC+8, no DST)
 
 import optimism
 import smartmoney
@@ -208,7 +210,7 @@ def smart_page(code, label, results, risk, stamp) -> str:
 def build() -> None:
     os.makedirs(CHARTS, exist_ok=True)
     os.makedirs(SMART, exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    stamp = datetime.now(SGT).strftime("%Y-%m-%d %H:%M SGT")
 
     # one shared copy of the plotly library at the site root; every chart page
     # references ../plotly.min.js, so it loads once (cached) with no CDN dependency.

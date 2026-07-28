@@ -47,7 +47,7 @@ SG_STOCKS = [
     ("S08.SI", "Singapore Post"),
     ("BSL.SI", "Raffles Medical"),
     ("584.SI", "First Resources"),
-    ("P9D.SI", "Bumitama Agri"),
+    ("P8Z.SI", "Bumitama Agri"),
     ("5E2.SI", "Seatrium"),
     ("AWX.SI", "AEM Holdings"),
     ("5CP.SI", "Silverlake Axis"),
