@@ -144,6 +144,12 @@ class SmartMoneyResult:
     smart_money_score: float   # 0-100
     accumulation_score: float  # 0-100
     entry_score: float         # 0-100 (MACD-near-zero + volume timing)
+    # component sub-scores (0-100) exposed so the site can re-weight client-side
+    cmf_score: float
+    obv_score: float
+    ad_score: float
+    trend_score: float
+    momentum_score: float
     confidence: float          # 0-100 (used for ranking)
     recommendation: str        # BUY / HOLD / SELL
     high_conviction: bool
@@ -274,6 +280,9 @@ def analyze(ticker: str, name: str | None = None,
         candlestick=_candlestick(df), support=round(support, 4), resistance=round(resistance, 4),
         smart_money_score=round(smart, 1), accumulation_score=round(accumulation, 1),
         entry_score=round(entry_score, 1),
+        cmf_score=round(cmf_score, 1), obv_score=round(obv_score, 1),
+        ad_score=round(ad_score, 1), trend_score=round(trend_score, 1),
+        momentum_score=round(momentum_score, 1),
         confidence=round(confidence, 1), recommendation=rec,
         high_conviction=bool(smart >= HIGH_CONVICTION),
         entry_low=round(last - 0.5 * a, 4), entry_high=round(last, 4),
