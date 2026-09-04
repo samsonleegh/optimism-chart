@@ -48,6 +48,44 @@ SMART_WEIGHTS = {"cmf": 0.28, "entry": 0.20, "trend": 0.15,
                  "momentum": 0.13, "obv": 0.14, "ad": 0.10}   # sums to 1.0
 ACCUM_WEIGHTS = {"cmf": 0.45, "obv": 0.30, "ad": 0.25}        # sums to 1.0
 
+# ---- market-regime weight profiles -----------------------------------------
+# A per-stock regime (from EMA spread + directional efficiency) picks which
+# default weights to use. In a clean TREND, reward trend/entry/OBV; in a RANGE,
+# reward mean-reversion-friendly momentum(RSI) + money flow (CMF/AD). The
+# TRANSITIONAL middle bucket keeps the neutral default so the score doesn't jump
+# discontinuously as a stock flips across the boundary. Each profile sums to 1.0.
+# (Proportions follow the supplied profiles, renormalized to our six components.)
+REGIME_WEIGHTS = {
+    "trending":     {"trend": 0.28, "entry": 0.22, "obv": 0.19,
+                     "cmf": 0.12, "momentum": 0.10, "ad": 0.09},
+    "ranging":      {"momentum": 0.28, "cmf": 0.22, "ad": 0.21,
+                     "obv": 0.13, "entry": 0.10, "trend": 0.06},
+    "transitional": dict(SMART_WEIGHTS),
+}
+REGIME_LOOKBACK = 20          # bars for the efficiency (directional-persistence) test
+REGIME_SPREAD_PCT = 1.5       # |EMA20-EMA50| as % of price above which = trending
+REGIME_EFFICIENCY = 0.6       # net move / total path above which = trending
+
+
+def detect_regime(close: pd.Series, e20: float, e50: float,
+                  lookback: int = REGIME_LOOKBACK) -> str:
+    """Classify a stock's price action as trending / ranging / transitional.
+
+    Uses two cheap, already-available reads (no new indicator):
+      * EMA20-EMA50 separation as a % of price — a wide gap means a trend.
+      * A simplified Kaufman efficiency ratio — |net move| / total path over
+        `lookback` bars: ~1 = straight-line trend, ~0 = choppy back-and-forth.
+    Two hits -> trending, zero -> ranging, one -> transitional (blend/neutral).
+    """
+    last = float(close.iloc[-1]) or 1e-9
+    spread_pct = abs(e20 - e50) / last * 100.0
+    seg = close.tail(lookback)
+    net_move = abs(float(seg.iloc[-1]) - float(seg.iloc[0]))
+    total_range = float(seg.max() - seg.min())
+    efficiency = net_move / total_range if total_range > 0 else 0.0
+    hits = (spread_pct > REGIME_SPREAD_PCT) + (efficiency > REGIME_EFFICIENCY)
+    return "trending" if hits >= 2 else "ranging" if hits == 0 else "transitional"
+
 
 # --------------------------- indicator helpers -----------------------------
 def ema(s: pd.Series, span: int) -> pd.Series:
@@ -150,6 +188,7 @@ class SmartMoneyResult:
     ad_score: float
     trend_score: float
     momentum_score: float
+    regime: str                # "trending" / "ranging" / "transitional"
     confidence: float          # 0-100 (used for ranking)
     recommendation: str        # BUY / HOLD / SELL
     high_conviction: bool
@@ -180,8 +219,13 @@ def fetch_ohlcv(ticker: str, period: str = "1y", interval: str = "1d") -> pd.Dat
 
 
 def analyze(ticker: str, name: str | None = None,
-            df: pd.DataFrame | None = None) -> SmartMoneyResult:
-    """Compute the smart-money scoreboard row for one stock from daily OHLCV."""
+            df: pd.DataFrame | None = None,
+            weights: dict | None = None) -> SmartMoneyResult:
+    """Compute the smart-money scoreboard row for one stock from daily OHLCV.
+
+    The default component weights adapt to the stock's market regime (trend vs
+    range vs transitional); pass `weights` to override with a fixed set.
+    """
     name = name or ticker
     if df is None:
         df = fetch_ohlcv(ticker)
@@ -253,7 +297,10 @@ def analyze(ticker: str, name: str | None = None,
     # real order flow) — its weight went to the smoothed CMF and the entry signal.
     sub = {"cmf": cmf_score, "obv": obv_score, "ad": ad_score,
            "trend": trend_score, "momentum": momentum_score, "entry": entry_score}
-    smart = sum(SMART_WEIGHTS[k] * sub[k] for k in SMART_WEIGHTS)
+    # regime-adaptive default weights (overridable via `weights`)
+    regime = detect_regime(close, e20, e50)
+    w = weights or REGIME_WEIGHTS[regime]
+    smart = sum(w[k] * sub[k] for k in w)
     accumulation = sum(ACCUM_WEIGHTS[k] * sub[k] for k in ACCUM_WEIGHTS)
 
     # relative-volume confirmation: conviction grows when the move has volume
@@ -282,7 +329,7 @@ def analyze(ticker: str, name: str | None = None,
         entry_score=round(entry_score, 1),
         cmf_score=round(cmf_score, 1), obv_score=round(obv_score, 1),
         ad_score=round(ad_score, 1), trend_score=round(trend_score, 1),
-        momentum_score=round(momentum_score, 1),
+        momentum_score=round(momentum_score, 1), regime=regime,
         confidence=round(confidence, 1), recommendation=rec,
         high_conviction=bool(smart >= HIGH_CONVICTION),
         entry_low=round(last - 0.5 * a, 4), entry_high=round(last, 4),
