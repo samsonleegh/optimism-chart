@@ -49,6 +49,18 @@ def body_html() -> str:
     anchors, sep_m = optimism.N_ANCHORS, optimism.PEAK_MIN_SEP_DAYS / 30.4
     s_buy, s_sell, s_hc = int(sm.BUY_ABOVE), int(sm.SELL_BELOW), int(sm.HIGH_CONVICTION)
     fw, cw = sm.FLOW_WINDOW, sm.CMF_WINDOW
+    rg_spread, rg_look = sm.REGIME_SPREAD_PCT, sm.REGIME_LOOKBACK
+
+    _order = ["cmf", "entry", "trend", "momentum", "obv", "ad"]
+    _lab = {"cmf": "CMF · money flow", "entry": "Entry quality", "trend": "Trend",
+            "momentum": "Momentum", "obv": "OBV", "ad": "A/D"}
+    regime_rows = ""
+    for _k in _order:
+        regime_rows += (
+            f"<tr><td><b>{_lab[_k]}</b></td>"
+            f"<td class='w'>{round(sm.REGIME_WEIGHTS['trending'].get(_k, 0) * 100)}%</td>"
+            f"<td class='w'>{round(sm.REGIME_WEIGHTS['ranging'].get(_k, 0) * 100)}%</td>"
+            f"<td class='w'>{round(sm.REGIME_WEIGHTS['transitional'].get(_k, 0) * 100)}%</td></tr>")
 
     return f"""
 <style>
@@ -105,8 +117,9 @@ Each stock shows a <b>10-year</b> (long-term) and a <b>1-year</b> (short-term) c
 
 <h2>3 · Smart Money score (0–100)</h2>
 <p>An <b>experimental</b> weighted blend of six components, each scored 0–100. Because the
-weights sum to 100%, the total is bounded 0–100.</p>
-<table><tr><th>Component</th><th>Weight</th><th>How it's computed</th></tr>
+weights sum to 100%, the total is bounded 0–100. The <b>weights adapt to each stock's market
+regime</b> (see §3a); the table below is the neutral (<i>Mixed</i>) profile.</p>
+<table><tr><th>Component</th><th>Weight (Mixed)</th><th>How it's computed</th></tr>
 {_weight_rows(sm.SMART_WEIGHTS)}</table>
 <p>Signal: <b>≥ {s_buy} → BUY</b> · <b>≤ {s_sell} → SELL</b> · else HOLD · <b>⭐ high-conviction ≥ {s_hc}</b>.</p>
 
@@ -123,6 +136,23 @@ but is <b>no longer part of the score</b> — the smoothed CMF ({cw}-day) carrie
 <li><b>Entry quality</b>: <code>0.6·MACD-timing + 0.4·volume</code>. MACD-timing = <code>100 − 30·max(z,0)</code> for a bull cross, where <code>z</code> is the MACD line's distance from zero in std units — so a cross <b>near/below zero</b> scores ~100, an extended one scores lower.</li>
 <li><b>OBV / A/D trend</b>: 20-day change, normalised by average volume, through <code>50 + 50·tanh(·)</code>.</li>
 </ul>
+
+<h3 id="regime">3a · Regime-adaptive weights</h3>
+<p>Different market conditions reward different signals, so each stock's <b>default</b> weights
+switch with its <b>regime</b>, detected from its own price action (no new indicator):</p>
+<ul>
+<li><b>EMA separation</b>: |EMA20 − EMA50| as a % of price — a wide gap ({rg_spread}%+) means a trend.</li>
+<li><b>Directional efficiency</b> (a simplified Kaufman ratio over {rg_look} days):
+    <code>|net move| / total path</code> — ~1 = straight-line trend, ~0 = choppy.</li>
+</ul>
+<p>Two hits → <b>📈 Trend</b>, zero → <b>🔁 Range</b>, one → <b>⚖️ Mixed</b> (the neutral blend, so the
+score doesn't jump as a stock crosses the boundary). Weights per regime:</p>
+<table><tr><th>Component</th><th>📈 Trend</th><th>🔁 Range</th><th>⚖️ Mixed</th></tr>
+{regime_rows}</table>
+<p><b>Trend</b> leans on trend / entry / OBV; <b>Range</b> leans on momentum (RSI) &amp; money-flow
+(CMF / A-D). On the scoreboard you can also flip on <b>Manual override</b> to apply one weighting
+to every stock. <span style="color:#a55">Caveat: this is a regime layer on top of an already-composite
+score — sanity-check it against known trending / ranging periods before trusting it live.</span></p>
 
 <h3>Accumulation score</h3>
 <p>A volume-only view (is smart money quietly accumulating?): {" + ".join(f"{int(w*100)}%·{_SMART_DESC[k][0].split(' (')[0]}" for k,w in sm.ACCUM_WEIGHTS.items())}.</p>

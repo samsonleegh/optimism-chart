@@ -177,25 +177,33 @@ def smart_detail_page(r, code, chart_html) -> str:
 _W_LABELS = {"cmf": "CMF · money flow", "entry": "Entry quality", "trend": "Trend",
              "momentum": "Momentum", "obv": "OBV", "ad": "A/D"}
 
-# client-side re-weighting: recompute each row's score from its sub-scores, re-rank live
+# client-side re-weighting: AUTO uses each row's regime profile; MANUAL applies
+# the sliders uniformly to every stock. Either way, re-score and re-rank live.
 _SMART_JS = r"""
 (function(){
   var cfg = SMCFG, KEYS = Object.keys(cfg.defaults);
   var table = document.getElementById('smtable'); if(!table) return;
-  var LS = 'smWeightsV1';
+  var LS = 'smWeightsV2', man = document.getElementById('wmanual');
   function read(){ var o={}; KEYS.forEach(function(k){ var el=document.getElementById('w_'+k);
     o[k]= el?parseFloat(el.value):cfg.defaults[k]; }); return o; }
-  function save(w){ try{ localStorage.setItem(LS, JSON.stringify(w)); }catch(e){} }
-  function load(){ try{ var s=localStorage.getItem(LS); if(!s) return; var w=JSON.parse(s);
-    KEYS.forEach(function(k){ var el=document.getElementById('w_'+k);
-      if(el && typeof w[k]==='number') el.value=w[k]; }); }catch(e){} }
+  function manual(){ return !!(man && man.checked); }
+  function save(){ try{ localStorage.setItem(LS, JSON.stringify({manual:manual(), w:read()})); }catch(e){} }
+  function load(){ try{ var s=localStorage.getItem(LS); if(!s) return; var o=JSON.parse(s);
+    if(man && typeof o.manual==='boolean') man.checked=o.manual;
+    if(o.w) KEYS.forEach(function(k){ var el=document.getElementById('w_'+k);
+      if(el && typeof o.w[k]==='number') el.value=o.w[k]; }); }catch(e){} }
   function recompute(){
-    var w=read(), sum=0; KEYS.forEach(function(k){ sum+=w[k]; }); if(sum<=0) sum=1;
+    var mw=read(), msum=0; KEYS.forEach(function(k){ msum+=mw[k]; }); if(msum<=0) msum=1;
+    var isMan=manual();
     KEYS.forEach(function(k){ var v=document.getElementById('v_'+k);
-      if(v) v.textContent=Math.round(w[k]/sum*100)+'%'; });
+      if(v) v.textContent=Math.round(mw[k]/msum*100)+'%';
+      var el=document.getElementById('w_'+k); if(el) el.disabled=!isMan; });
     var rows=[].slice.call(table.querySelectorAll('tr.srow'));
     rows.forEach(function(tr){
-      var sc=0; KEYS.forEach(function(k){ sc += w[k]*parseFloat(tr.dataset[k]||0); }); sc/=sum;
+      var w, sum;
+      if(isMan){ w=mw; sum=msum; }
+      else { w=cfg.profiles[tr.dataset.regime]||cfg.profiles.transitional; sum=100; }
+      var sc=0; KEYS.forEach(function(k){ sc += (w[k]||0)*parseFloat(tr.dataset[k]||0); }); sc/=sum;
       tr._sc=sc;
       var relv=parseFloat(tr.dataset.relvol||1);
       var conf=Math.min(100, sc*(0.85+0.15*Math.min(relv,2)));
@@ -208,16 +216,22 @@ _SMART_JS = r"""
     rows.sort(function(a,b){ return b._sc-a._sc; });
     rows.forEach(function(tr,idx){ table.appendChild(tr);
       var rk=tr.querySelector('[data-role=rank]'); if(rk) rk.textContent=idx+1; });
-    save(read());
+    save();
   }
   KEYS.forEach(function(k){ var el=document.getElementById('w_'+k);
     if(el) el.addEventListener('input', recompute); });
+  if(man) man.addEventListener('change', recompute);
   var rb=document.getElementById('wreset');
   if(rb) rb.addEventListener('click', function(){ KEYS.forEach(function(k){
     var el=document.getElementById('w_'+k); if(el) el.value=cfg.defaults[k]; }); recompute(); });
   load(); recompute();
 })();
 """
+
+# regime badge label + css class
+_RG_BADGE = {"trending": ("📈 Trend", "trending"),
+             "ranging": ("🔁 Range", "ranging"),
+             "transitional": ("⚖️ Mixed", "transitional")}
 
 
 def smart_page(code, label, results, risk, stamp) -> str:
@@ -227,10 +241,12 @@ def smart_page(code, label, results, risk, stamp) -> str:
         sh = "" if r.high_conviction else " hidden"
         cc = "pos" if r.change_pct >= 0 else "neg"
         cmfc = "pos" if r.cmf >= 0 else "neg"
+        rg_lbl, rg_cls = _RG_BADGE.get(r.regime, ("⚖️ Mixed", "transitional"))
         rows += (
             f"<tr class='srow' data-cmf='{r.cmf_score}' data-entry='{r.entry_score}' "
             f"data-trend='{r.trend_score}' data-momentum='{r.momentum_score}' "
-            f"data-obv='{r.obv_score}' data-ad='{r.ad_score}' data-relvol='{r.rel_volume}'>"
+            f"data-obv='{r.obv_score}' data-ad='{r.ad_score}' data-relvol='{r.rel_volume}' "
+            f"data-regime='{r.regime}'>"
             f"<td data-role='rank'>{i}</td>"
             f"<td><a href='smart/{html.escape(r.ticker)}.html'>{html.escape(r.name)}</a>"
             f"<span class='hc' data-role='star'{sh}>⭐</span></td>"
@@ -240,41 +256,56 @@ def smart_page(code, label, results, risk, stamp) -> str:
             f"<td>{r.rel_volume:.2f}×</td><td>{r.buy_ratio:.0f}%</td>"
             f"<td><span class='flow'><i style='width:{r.buy_ratio:.0f}%'></i></span></td>"
             f"<td class='{cmfc}'>{r.cmf:+.2f}</td><td>{r.trend}</td>"
+            f"<td><span class='rg {rg_cls}'>{rg_lbl}</span></td>"
             f"<td class='score' data-role='score'>{r.smart_money_score:.0f}</td>"
             f"<td>{r.accumulation_score:.0f}</td>"
             f"<td data-role='conf'>{r.confidence:.0f}</td>"
             f"<td><span class='rec {r.recommendation}' data-role='call'>{r.recommendation}</span></td></tr>")
 
     sliders = ""
-    for k, w in smartmoney.SMART_WEIGHTS.items():
-        pct = int(round(w * 100))
+    for k in smartmoney.SMART_WEIGHTS:                       # neutral start values
+        pct = int(round(smartmoney.SMART_WEIGHTS[k] * 100))
         sliders += (f"<div class='wrow'><label for='w_{k}'>{_W_LABELS[k]}</label>"
-                    f"<input type='range' id='w_{k}' data-k='{k}' min='0' max='100' value='{pct}'>"
+                    f"<input type='range' id='w_{k}' data-k='{k}' min='0' max='100' value='{pct}' disabled>"
                     f"<span class='wval' id='v_{k}'>{pct}%</span></div>")
     panel = (
-        "<details class='wpanel' open><summary>⚙️ Adjust weights (live)</summary>"
+        "<details class='wpanel' open><summary>⚙️ Weights &amp; market regime</summary>"
+        "<div class='wmode'><label><input type='checkbox' id='wmanual'> "
+        "<b>Manual override</b> — apply one weighting to every stock</label>"
+        "<span class='wnote'>Off = each stock uses its own <b>regime</b> profile "
+        "(see the Regime column). On = your sliders below apply to all.</span></div>"
         f"<div class='wgrid'>{sliders}</div>"
-        "<div class='wfoot'><button type='button' id='wreset'>Reset to defaults</button>"
-        "<span class='wnote'>Drag to re-weight — scores, ranking, calls &amp; ⭐ update live and "
-        "are saved on this device. Weights auto-normalize to 100%. (Accum &amp; the detail pages "
-        "keep the default weights.)</span></div></details>")
+        "<div class='wfoot'><button type='button' id='wreset'>Reset sliders to neutral</button>"
+        "<span class='wnote'>Scores, ranking, calls &amp; ⭐ update live; saved on this device. "
+        "<b>Trend</b> regime favours trend/entry/OBV; <b>Range</b> favours momentum &amp; money-flow; "
+        "<b>Mixed</b> uses the neutral blend. (Accum &amp; detail pages keep default weights.)</span>"
+        "</div></details>")
 
     cfg = json.dumps({"defaults": {k: int(round(v * 100)) for k, v in smartmoney.SMART_WEIGHTS.items()},
+                      "profiles": {rg: {k: round(v * 100) for k, v in prof.items()}
+                                   for rg, prof in smartmoney.REGIME_WEIGHTS.items()},
                       "buy": smartmoney.BUY_ABOVE, "sell": smartmoney.SELL_BELOW,
                       "hc": smartmoney.HIGH_CONVICTION})
     style = ("<style>"
              ".wpanel{background:#fff;border:1px solid #e6e9ee;border-radius:10px;padding:10px 14px;"
              "margin:12px 0;box-shadow:0 1px 3px #0001}"
              ".wpanel summary{cursor:pointer;font-weight:700;color:#33415c}"
+             ".wmode{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;margin:10px 0 2px}"
+             ".wmode label{font-size:13px;cursor:pointer}"
              ".wgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 22px;margin:12px 0 6px}"
              ".wrow{display:flex;align-items:center;gap:8px}"
              ".wrow label{flex:0 0 120px;font-size:13px}"
              ".wrow input[type=range]{flex:1;min-width:80px}"
+             ".wrow input[type=range]:disabled{opacity:.4}"
              ".wval{flex:0 0 42px;text-align:right;font-weight:700;font-size:13px;color:#5b2c83}"
              ".wfoot{display:flex;align-items:center;gap:12px;margin-top:6px;flex-wrap:wrap}"
              ".wfoot button{background:#5b2c83;color:#fff;border:0;border-radius:6px;padding:6px 12px;"
              "cursor:pointer;font-size:13px}"
              ".wnote{font-size:12px;color:#778;flex:1;min-width:200px}"
+             ".rg{font-size:11px;padding:2px 7px;border-radius:10px;font-weight:600;white-space:nowrap}"
+             ".rg.trending{background:#e3f6ea;color:#1e8449}"
+             ".rg.ranging{background:#fdf0e3;color:#b9770e}"
+             ".rg.transitional{background:#eef1f4;color:#556}"
              ".srow .hc[hidden]{display:none}"
              "</style>")
 
@@ -286,11 +317,12 @@ def smart_page(code, label, results, risk, stamp) -> str:
         f"from daily OHLCV → Smart Money &amp; Accumulation scores (0–100). "
         f"BUY ≥ {int(smartmoney.BUY_ABOVE)} · SELL ≤ {int(smartmoney.SELL_BELOW)} · "
         f"⭐ = high-conviction (≥{int(smartmoney.HIGH_CONVICTION)}). "
+        f"Weights adapt to each stock's <b>regime</b> (Trend / Range / Mixed). "
         f"Heuristic, daily data, <b>not advice</b> · built {stamp}</div>"
         f"{risk_banner(risk)}{smart_tabs(code)}{panel}"
         f"<table class='smart' id='smtable'><tr><th>#</th><th>Stock</th><th>Last</th><th>Chg%</th>"
         f"<th>RSI</th><th>MACD</th><th>RelVol</th><th>Ask vol%</th><th></th><th>CMF</th>"
-        f"<th>Trend</th><th>SM Score</th><th>Accum</th><th>Conf</th><th>Call</th></tr>"
+        f"<th>Trend</th><th>Regime</th><th>SM Score</th><th>Accum</th><th>Conf</th><th>Call</th></tr>"
         f"{rows}</table>"
         f"<script>const SMCFG={cfg};{_SMART_JS}</script>")
     return page(f"Smart Money — {label}", body)
