@@ -115,6 +115,13 @@ def atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> 
     return tr.ewm(alpha=1 / period, adjust=False).mean()
 
 
+def bollinger(close: pd.Series, window: int = 20, k: float = 2.0):
+    """Bollinger Bands: SMA(window) as the middle band, ± k standard deviations."""
+    mid = close.rolling(window).mean()
+    sd = close.rolling(window).std(ddof=0)
+    return mid + k * sd, mid, mid - k * sd
+
+
 def _clip01(v: float) -> float:
     return float(max(0.0, min(100.0, v)))
 
@@ -426,6 +433,7 @@ def make_chart(result: SmartMoneyResult, df: pd.DataFrame, months: int = 6,
     """
     close, high, low, vol = df["Close"], df["High"], df["Low"], df["Volume"]
     e20, e50 = ema(close, 20), ema(close, 50)
+    bb_up, bb_mid, bb_lo = bollinger(close)
     rsi_s = rsi(close)
     m_line, m_sig, m_hist = macd(close)
     buy_vol, sell_vol = buy_sell_volume(df)
@@ -442,9 +450,20 @@ def make_chart(result: SmartMoneyResult, df: pd.DataFrame, months: int = 6,
     fig = make_subplots(
         rows=5, cols=1, shared_xaxes=True, vertical_spacing=0.03,
         row_heights=[0.38, 0.14, 0.15, 0.18, 0.15],
-        subplot_titles=("Price · EMA20/50 · plan levels",
+        subplot_titles=("Price · EMA20/50 · Bollinger(20,2) · plan levels",
                         "Proxy ask (buy-up) vs bid (sell-down) volume", "RSI", "MACD",
                         "Chaikin Money Flow (20d)"))
+
+    # --- Bollinger Bands (drawn first, so candles/EMAs sit on top) ---
+    fig.add_trace(go.Scatter(x=x, y=bb_lo.iloc[-n:], name="BB lower", legendgroup="bb",
+                             line=dict(color="rgba(120,120,160,0.45)", width=1),
+                             showlegend=False), row=1, col=1)
+    fig.add_trace(go.Scatter(x=x, y=bb_up.iloc[-n:], name="Bollinger(20,2)", legendgroup="bb",
+                             line=dict(color="rgba(120,120,160,0.45)", width=1),
+                             fill="tonexty", fillcolor="rgba(120,120,160,0.08)"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=x, y=bb_mid.iloc[-n:], name="BB mid (SMA20)", legendgroup="bb",
+                             line=dict(color="rgba(120,120,160,0.6)", width=1, dash="dot"),
+                             showlegend=False), row=1, col=1)
 
     # --- price candlesticks + moving averages ---
     fig.add_trace(go.Candlestick(
