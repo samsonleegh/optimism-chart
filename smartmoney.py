@@ -264,7 +264,10 @@ def analyze(ticker: str, name: str | None = None,
 
     mfm = ((close - low) - (high - close)) / (high - low).replace(0.0, np.nan)
     mfv = (mfm.fillna(0.0) * vol)
-    cmf = float(mfv.tail(CMF_WINDOW).sum() / vol.tail(CMF_WINDOW).sum())
+    vol_sum = float(vol.tail(CMF_WINDOW).sum())
+    cmf = float(mfv.tail(CMF_WINDOW).sum() / vol_sum) if vol_sum else 0.0   # 0 for no-volume indices
+    if not np.isfinite(cmf):
+        cmf = 0.0
     ad_line = mfv.cumsum()
     obv = (np.sign(close.diff().fillna(0.0)) * vol).cumsum()
 
