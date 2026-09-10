@@ -6,6 +6,7 @@ clean 10-year history. Add more (ticker, name) pairs to widen coverage.
 """
 
 SG_STOCKS = [
+    ("^STI", "STI Index"),                 # the Straits Times Index itself (benchmark)
     ("D05.SI", "DBS Group"),
     ("O39.SI", "OCBC"),
     ("U11.SI", "UOB"),

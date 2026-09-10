@@ -11,6 +11,7 @@ Run locally:  .venv/bin/python build_static.py   then open site/index.html
 from __future__ import annotations
 
 import os
+import re
 import time
 import html
 import traceback
@@ -64,6 +65,11 @@ CSS = """
 REC_ORDER = {"SELL": 0, "BUY": 1, "HOLD": 2}
 
 
+def tf(ticker: str) -> str:
+    """Filesystem/URL-safe basename for a ticker (e.g. '^STI' -> '_STI')."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", ticker)
+
+
 def opt_file(code: str) -> str:
     return "index.html" if code == FIRST else f"{code.lower()}.html"
 
@@ -113,7 +119,7 @@ def market_page(code, label, results, stamp) -> str:
     for r in sorted(results, key=lambda x: (REC_ORDER.get(x.recommendation, 3), -x.optimism)):
         clamped = max(0, min(100, r.optimism))
         rows += (
-            f"<tr><td><a href='charts/{html.escape(r.ticker)}.html'>{html.escape(r.name)}</a> "
+            f"<tr><td><a href='charts/{tf(r.ticker)}.html'>{html.escape(r.name)}</a> "
             f"<span style='color:#99a'>{html.escape(r.ticker)}</span></td>"
             f"<td>{r.last_price:.2f}</td><td>{r.optimism:.0f}%</td>"
             f"<td><div class='bar'><i style='left:{clamped}%'></i></div></td>"
@@ -143,7 +149,7 @@ def smart_detail_page(r, code, chart_html) -> str:
     back = smart_file(code)
     body = (
         f"<p><a href='../{back}'>&larr; back to Smart Money</a> · "
-        f"<a href='../charts/{html.escape(r.ticker)}.html'>optimism chart &rarr;</a></p>"
+        f"<a href='../charts/{tf(r.ticker)}.html'>optimism chart &rarr;</a></p>"
         f"<h1>{html.escape(r.name)} <span style='color:#99a;font-size:16px'>{html.escape(r.ticker)}</span></h1>"
         f"<p>Last {r.last_price:.4g} ({r.change_pct:+.1f}%) · "
         f"<span class='rec {r.recommendation}'>{r.recommendation}</span> "
@@ -248,7 +254,7 @@ def smart_page(code, label, results, risk, stamp) -> str:
             f"data-obv='{r.obv_score}' data-ad='{r.ad_score}' data-relvol='{r.rel_volume}' "
             f"data-regime='{r.regime}'>"
             f"<td data-role='rank'>{i}</td>"
-            f"<td><a href='smart/{html.escape(r.ticker)}.html'>{html.escape(r.name)}</a>"
+            f"<td><a href='smart/{tf(r.ticker)}.html'>{html.escape(r.name)}</a>"
             f"<span class='hc' data-role='star'{sh}>⭐</span></td>"
             f"<td>{r.last_price:.3g}</td>"
             f"<td class='{cc}'>{r.change_pct:+.1f}</td>"
@@ -352,7 +358,7 @@ def build() -> None:
             sdf = None
             try:
                 sres, sdf = smartmoney.compute(ticker, name=name)
-                with open(os.path.join(SMART, f"{ticker}.html"), "w") as f:
+                with open(os.path.join(SMART, f"{tf(ticker)}.html"), "w") as f:
                     f.write(smart_detail_page(sres, code,
                             smartmoney.make_chart(sres, sdf, include_plotlyjs="../plotly.min.js")))
                 smart_results.append(sres)
@@ -376,7 +382,7 @@ def build() -> None:
                                                      include_plotlyjs="../plotly.min.js")
                     except Exception as exc:
                         print(f"  {code} {ticker:10s} 1y ERROR {exc}")
-                with open(os.path.join(CHARTS, f"{ticker}.html"), "w") as f:
+                with open(os.path.join(CHARTS, f"{tf(ticker)}.html"), "w") as f:
                     f.write(chart_page(result, code, chart10, chart1))
                 results.append(result)
                 print(f"  {code} {ticker:10s} {result.optimism:5.0f}%  {result.recommendation}")
