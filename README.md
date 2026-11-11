@@ -102,3 +102,9 @@ Build the static site locally too: `.venv/bin/python build_static.py` → open `
 - Prices are **nominal** (not dividend-adjusted), so a 10y channel reflects the
   price chart you'd recognise, not total return.
 - This is a valuation heuristic, **not investment advice**.
+
+## Keeping the site fresh
+GitHub automatically **pauses scheduled Actions after ~60 days with no commits**,
+which freezes the published site on its last build date. To resume:
+- **Actions** tab → **Build & deploy optimism site** → **Enable workflow** → **Run workflow** (`main`), or
+- push any commit to `main` (this counts as activity and re-enables the schedule).
