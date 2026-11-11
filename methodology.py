@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import optimism
 import smartmoney as sm
+import trackrecord as tr
 
 # component key -> (display label, plain-English formula)
 _SMART_DESC = {
@@ -173,7 +174,32 @@ score — sanity-check it against known trending / ranging periods before trusti
 <p>🟢 / 🟡 / 🔴 banner from: STI vs its 50-day EMA, the VIX level, and overnight S&amp;P 500 —
 a quick "be aggressive / selective / defensive" read. Best-effort; degrades gracefully if a feed is missing.</p>
 
-<h2>6 · Caveats</h2>
+<h2>6 · Forward test (track record)</h2>
+<p>A call is only as good as what happens <i>next</i>, so the <b>📈 Forward Test</b> tab
+paper-trades every <b>high-confidence</b> call and grades it later. A static site forgets
+everything between builds, so each pick is stored in a small JSON ledger committed back to
+the repo.</p>
+<ul>
+<li><b>What opens a pick</b> — the first build on which a stock becomes either a Smart Money
+    <b>⭐ high-conviction BUY</b> (score ≥ {int(tr.SMART_HIGH_CONVICTION)}) or an Optimism
+    <b>deep BUY</b> (≤ {int(tr.OPT_BUY_BELOW)}% of channel). The entry price and the full
+    signal snapshot (regime, scores, RSI, market-risk, plan levels) are frozen in.</li>
+<li><b>Live tracking</b> — on every rebuild each open pick is re-priced: return since entry,
+    return <b>vs its market</b> ({", ".join(tr.BENCHMARKS.values())}), days held, and whether
+    price has touched Target&nbsp;1 or the stop.</li>
+<li><b>Settlement</b> — after <b>{tr.HORIZON_TD} trading days (~1 month)</b> the pick closes with a
+    verdict: <b>WIN</b> only if it <i>both</i> made money <i>and</i> beat its market (positive
+    alpha); otherwise <b>MISS</b>. The verdict is frozen so it never drifts.</li>
+<li><b>Post-mortem</b> — each settled pick gets a short, rules-based read of what the entry
+    analysis looked like (e.g. ranging regime, hot RSI, shaky market-risk tape, value without
+    money-flow). For misses this is the "what might the original call have gotten wrong?" note.
+    A richer written review is left to a periodic Claude pass over the ledger.</li>
+</ul>
+<div class="box warn">This is an <b>honest scorecard of a heuristic</b>, not a trading system.
+No position sizing, no fees/slippage, entries at the daily close, and a fixed 1-month horizon —
+read it as "does high conviction tend to pay off?", not as a backtested strategy.</div>
+
+<h2>7 · Caveats</h2>
 <ul>
 <li>Free, delayed, end-of-day data — <b>not</b> a live or tick feed.</li>
 <li>The ask/bid split is a <b>proxy</b>, not real order flow (which needs a broker/paid feed).</li>

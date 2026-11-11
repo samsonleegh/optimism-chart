@@ -22,6 +22,7 @@ SGT = timezone(timedelta(hours=8))   # Singapore time (UTC+8, no DST)
 import optimism
 import smartmoney
 import methodology
+import trackrecord
 from tickers import MARKETS
 
 OUT = "site"
@@ -45,6 +46,7 @@ CSS = """
  .bar i{position:absolute;top:-3px;width:3px;height:15px;background:#1f2933}
  .err{color:#c0392b;font-size:12px} img{max-width:100%;box-shadow:0 1px 4px #0002;border-radius:8px}
  .tabs a.smartlink{background:#5b2c83;color:#fff}
+ .tabs a.fwdlink{background:#1e8449;color:#fff}
  .tabs.smart a.active{background:#5b2c83}
  table.smart th,table.smart td{text-align:right}
  table.smart th:first-child,table.smart td:first-child{text-align:left}
@@ -89,6 +91,7 @@ def tabs(active: str) -> str:
         f"class='{'active' if code == active else ''}'>{html.escape(label)}</a>"
         for code, (label, _) in MARKETS.items())
     links += f"<a href='{smart_file(active)}' class='smartlink'>🧠 Smart Money</a>"
+    links += "<a href='forward.html' class='fwdlink'>📈 Forward Test</a>"
     links += "<a href='methodology.html' style='background:#33415c;color:#fff'>📖 Methodology</a>"
     return f"<div class='tabs'>{links}</div>"
 
@@ -99,6 +102,7 @@ def smart_tabs(active: str) -> str:
         f"class='{'active' if code == active else ''}'>{html.escape(label)}</a>"
         for code, (label, _) in MARKETS.items())
     links += f"<a href='{opt_file(active)}' style='background:#dfe6ee;color:#445'>← Optimism</a>"
+    links += "<a href='forward.html' class='fwdlink'>📈 Forward Test</a>"
     links += "<a href='methodology.html' style='background:#33415c;color:#fff'>📖 Methodology</a>"
     return f"<div class='tabs smart'>{links}</div>"
 
@@ -334,10 +338,189 @@ def smart_page(code, label, results, risk, stamp) -> str:
     return page(f"Smart Money — {label}", body)
 
 
+# ----------------------------- Forward Test tab ----------------------------
+_FWD_STYLE = (
+    "<style>"
+    ".fcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:14px 0}"
+    ".fcard{background:#fff;border-radius:10px;box-shadow:0 1px 3px #0001;padding:14px 16px}"
+    ".ftitle{font-size:13px;color:#667;font-weight:600;margin-bottom:4px}"
+    ".fbig{font-size:30px;font-weight:800;color:#1e8449}"
+    ".funit{font-size:13px;font-weight:600;color:#999;margin-left:6px}"
+    ".fsec{margin:22px 0 6px;font-size:18px}"
+    ".verdict{font-weight:700;padding:2px 10px;border-radius:12px;color:#fff;font-size:12px}"
+    ".verdict.WIN{background:#27ae60}.verdict.MISS{background:#c0392b}"
+    ".tag{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:10px;margin:1px 2px}"
+    ".tag.win{background:#e3f6ea;color:#1e8449}.tag.miss{background:#fde7e3;color:#c0392b}"
+    ".src{font-size:11px;font-weight:600;padding:1px 7px;border-radius:10px;white-space:nowrap}"
+    ".src.smart{background:#efe6f6;color:#5b2c83}.src.optimism{background:#e6eef6;color:#1f5b8f}"
+    ".diag{margin:4px 0 0 0;padding-left:18px;font-size:12px;color:#556}"
+    ".diag li{margin:2px 0}"
+    ".fnote{color:#667;font-size:13px;margin:2px 0 10px;max-width:900px}"
+    "</style>")
+
+
+def _pct_cell(v, digits=1) -> str:
+    if v is None:
+        return "<span class='note'>—</span>"
+    cls = "pos" if v >= 0 else "neg"
+    return f"<span class='{cls}'>{v:+.{digits}f}%</span>"
+
+
+def forward_nav() -> str:
+    links = "".join(
+        f"<a href='{opt_file(code)}' style='background:#dfe6ee;color:#445'>{html.escape(label)}</a>"
+        for code, (label, _) in MARKETS.items())
+    links += f"<a href='{smart_file(FIRST)}' class='smartlink'>🧠 Smart Money</a>"
+    links += "<a href='forward.html' class='fwdlink active'>📈 Forward Test</a>"
+    links += "<a href='methodology.html' style='background:#33415c;color:#fff'>📖 Methodology</a>"
+    return f"<div class='tabs'>{links}</div>"
+
+
+def _stat_card(title, s) -> str:
+    if not s or not s.get("n"):
+        return (f"<div class='fcard'><div class='ftitle'>{title}</div>"
+                f"<div class='fbig' style='color:#bbb'>—</div>"
+                f"<div class='note'>no settled calls yet</div></div>")
+    wr = s["win_rate"]
+    ar = f"{s['avg_ret']:+.1f}%" if s["avg_ret"] is not None else "—"
+    aa = f"{s['avg_alpha']:+.1f}%" if s["avg_alpha"] is not None else "—"
+    return (f"<div class='fcard'><div class='ftitle'>{title}</div>"
+            f"<div class='fbig'>{wr:.0f}%<span class='funit'>beat market</span></div>"
+            f"<div class='note'>{s['wins']}/{s['n']} settled · avg return {ar} · avg α {aa}</div></div>")
+
+
+def _entry_read(sig) -> str:
+    bits = []
+    if sig.get("smart_money_score") is not None:
+        bits.append(f"SM {sig['smart_money_score']:.0f}")
+    if sig.get("optimism_pct") is not None:
+        bits.append(f"opt {sig['optimism_pct']:.0f}%")
+    if sig.get("regime"):
+        rg = {"trending": "📈 trend", "ranging": "🔁 range",
+              "transitional": "⚖️ mixed"}.get(sig["regime"], sig["regime"])
+        bits.append(rg)
+    if sig.get("rsi") is not None:
+        bits.append(f"RSI {sig['rsi']:.0f}")
+    if sig.get("market_risk"):
+        bits.append(f"risk {sig['market_risk']}")
+    return " · ".join(bits)
+
+
+def _detail_link(r) -> str:
+    href = (f"smart/{tf(r['ticker'])}.html" if r["source"] == "smart"
+            else f"charts/{tf(r['ticker'])}.html")
+    return (f"<a href='{href}'>{html.escape(r['name'])}</a> "
+            f"<span style='color:#99a;font-size:12px'>{html.escape(r['ticker'])}</span>")
+
+
+def forward_page(view, stamp) -> str:
+    HZ = trackrecord.HORIZON_TD
+    st = view["stats"]
+    cards = (f"<div class='fcards'>{_stat_card('All high-confidence calls', st['all'])}"
+             f"{_stat_card('🧠 Smart Money ⭐', st['smart'])}"
+             f"{_stat_card('📉 Optimism deep-BUY', st['optimism'])}</div>")
+
+    # open positions (live)
+    if view["open"]:
+        orows = ""
+        for r in view["open"]:
+            live, sig = r["live"], r["entry_signals"]
+            flags = ""
+            if live.get("hit_t1"):
+                flags += "<span class='tag win'>hit T1</span>"
+            if live.get("hit_stop"):
+                flags += "<span class='tag miss'>hit stop</span>"
+            dh = live.get("days_held")
+            dh_txt = f"{dh}/{HZ}" if dh is not None else "—"
+            now = f"{live['current_price']:.4g}" if live.get("current_price") is not None else "—"
+            orows += (
+                f"<tr><td>{_detail_link(r)}</td>"
+                f"<td>{r['market']}</td>"
+                f"<td><span class='src {r['source']}'>{SRC_SHORT[r['source']]}</span></td>"
+                f"<td>{r['entry_date']}</td><td>{r['entry_price']:.4g}</td><td>{now}</td>"
+                f"<td>{_pct_cell(live.get('ret_pct'))}</td>"
+                f"<td>{_pct_cell(live.get('alpha_pct'))}</td>"
+                f"<td>{dh_txt}</td><td>{flags or '—'}</td>"
+                f"<td class='note'>{html.escape(_entry_read(sig))}</td></tr>")
+        open_tbl = (
+            f"<table><tr><th>Stock</th><th>Mkt</th><th>Source</th><th>Entry date</th>"
+            f"<th>Entry</th><th>Now</th><th>Return</th><th>vs Mkt (α)</th>"
+            f"<th>Held</th><th>Flags</th><th>Signals at entry</th></tr>{orows}</table>")
+    else:
+        open_tbl = ("<p class='fnote'>No open high-confidence calls right now. "
+                    "New ⭐ Smart-Money and deep-value Optimism BUYs will be stamped and "
+                    "tracked here the moment they fire.</p>")
+
+    # settled (final verdict + diagnosis)
+    if view["closed"]:
+        crows = ""
+        for r in view["closed"]:
+            res, live = r["result"], r["live"]
+            v = res["verdict"]
+            diag = "".join(f"<li>{n}</li>" for n in res["diagnosis"])
+            crows += (
+                f"<tr><td>{_detail_link(r)}</td>"
+                f"<td>{r['market']}</td>"
+                f"<td><span class='src {r['source']}'>{SRC_SHORT[r['source']]}</span></td>"
+                f"<td>{r['entry_date']} → {res.get('settled_date') or '—'}</td>"
+                f"<td>{r['entry_price']:.4g}</td>"
+                f"<td>{_pct_cell(live.get('ret_pct'))}</td>"
+                f"<td>{_pct_cell(live.get('alpha_pct'))}</td>"
+                f"<td><span class='verdict {v}'>{v}</span></td>"
+                f"<td><ul class='diag'>{diag}</ul></td></tr>")
+        closed_tbl = (
+            f"<table><tr><th>Stock</th><th>Mkt</th><th>Source</th><th>Entry → Settled</th>"
+            f"<th>Entry</th><th>Return</th><th>vs Mkt (α)</th><th>Verdict</th>"
+            f"<th>What the entry analysis looked like</th></tr>{crows}</table>")
+    else:
+        closed_tbl = (f"<p class='fnote'>Nothing settled yet. A call settles "
+                      f"{HZ} trading days (~1 month) after entry, then gets a WIN/MISS "
+                      f"verdict and a short read on what the original analysis got right or wrong.</p>")
+
+    body = (
+        f"{_FWD_STYLE}"
+        f"<h1>📈 Forward Test <span style='font-size:14px;color:#999'>(does high conviction pay off?)</span></h1>"
+        f"<p class='fnote'>Papa&nbsp;Loy's idea: paper-trade every <b>high-confidence</b> call and "
+        f"check later whether it measured up. When a stock first becomes a 🧠 Smart-Money "
+        f"<b>⭐ high-conviction</b> BUY (score ≥ {int(trackrecord.SMART_HIGH_CONVICTION)}) or an "
+        f"📉 Optimism <b>deep BUY</b> (≤ {int(trackrecord.OPT_BUY_BELOW)}% of channel), it's stamped with "
+        f"its entry price and signal snapshot. We then track it live and <b>settle</b> it after "
+        f"{HZ} trading days — a <b>WIN</b> only if it both made money <i>and</i> beat its market "
+        f"({', '.join(trackrecord.BENCHMARKS.values())}). Misses get a diagnosis of what the "
+        f"initial analysis may have missed. Heuristic, delayed data — <b>not advice</b>. "
+        f"Built {stamp}.</p>"
+        f"{forward_nav()}"
+        f"{cards}"
+        f"<h2 class='fsec'>Open calls — live</h2>{open_tbl}"
+        f"<h2 class='fsec'>Settled calls — verdict &amp; post-mortem</h2>{closed_tbl}")
+    return page("Forward Test — high-confidence calls", body)
+
+
+SRC_SHORT = {"smart": "🧠 ⭐", "optimism": "📉 opt"}
+
+
+def _benchmark_close(code, sdf_map):
+    """Benchmark closing-price series for a market (reuse an already-fetched frame)."""
+    bt = trackrecord.BENCHMARKS.get(code)
+    if not bt:
+        return None
+    if bt in sdf_map:
+        return sdf_map[bt]["Close"]
+    try:
+        return smartmoney.fetch_ohlcv(bt)["Close"]
+    except Exception:
+        print(f"  {code} benchmark {bt} unavailable")
+        return None
+
+
 def build() -> None:
     os.makedirs(CHARTS, exist_ok=True)
     os.makedirs(SMART, exist_ok=True)
     stamp = datetime.now(SGT).strftime("%Y-%m-%d %H:%M SGT")
+
+    ledger = trackrecord.load_ledger(trackrecord.LEDGER_PATH)
+    sdf_by_market: dict = {}
+    bench_by_market: dict = {}
 
     # one shared copy of the plotly library at the site root; every chart page
     # references ../plotly.min.js, so it loads once (cached) with no CDN dependency.
@@ -353,6 +536,7 @@ def build() -> None:
 
     for code, (label, stocks) in MARKETS.items():
         results, smart_results = [], []
+        sdf_map: dict = {}
         for ticker, name in stocks:
             # Smart Money (1y daily) first — its OHLCV also feeds the 1y optimism chart.
             sdf = None
@@ -362,6 +546,8 @@ def build() -> None:
                     f.write(smart_detail_page(sres, code,
                             smartmoney.make_chart(sres, sdf, include_plotlyjs="../plotly.min.js")))
                 smart_results.append(sres)
+                if sdf is not None:
+                    sdf_map[ticker] = sdf
                 print(f"  {code} {ticker:10s} SM {sres.smart_money_score:5.0f}  {sres.recommendation}")
             except Exception as exc:
                 print(f"  {code} {ticker:10s} SM ERROR {exc}")
@@ -397,11 +583,28 @@ def build() -> None:
             f.write(smart_page(code, label, smart_results, risk, stamp))
         print(f"wrote {OUT}/{fname} ({len(results)} opt, {len(smart_results)} smart)")
 
+        # --- forward test: settle matured picks, then open new high-confidence calls ---
+        bench_close = _benchmark_close(code, sdf_map)
+        settled = trackrecord.settle_due(ledger, code, sdf_map, bench_close)
+        opened = trackrecord.open_picks(ledger, code, smart_results, results,
+                                        sdf_map, bench_close, risk.rating)
+        sdf_by_market[code] = sdf_map
+        bench_by_market[code] = bench_close
+        print(f"  {code} forward test: +{len(opened)} opened, {len(settled)} settled")
+
     with open(os.path.join(OUT, "methodology.html"), "w") as f:
         f.write(page("Methodology — Optimism Charts",
                      f"<p><a href='{opt_file(FIRST)}'>&larr; back to dashboard</a></p>"
                      + methodology.body_html()))
     print(f"wrote {OUT}/methodology.html")
+
+    # --- forward test page + persisted ledger ---
+    trackrecord.save_ledger(ledger, trackrecord.LEDGER_PATH)
+    view = trackrecord.build_view(ledger, sdf_by_market, bench_by_market)
+    with open(os.path.join(OUT, "forward.html"), "w") as f:
+        f.write(forward_page(view, stamp))
+    print(f"wrote {OUT}/forward.html "
+          f"({len(view['open'])} open, {len(view['closed'])} settled)")
 
 
 FIRST = next(iter(MARKETS))

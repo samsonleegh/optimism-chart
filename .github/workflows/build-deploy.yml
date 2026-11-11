@@ -11,7 +11,7 @@ on:
   workflow_dispatch: {}        # allow manual runs from the Actions tab
 
 permissions:
-  contents: read
+  contents: write          # push the persisted forward-test ledger back to the repo
   pages: write
   id-token: write
 
@@ -25,6 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history so the ledger commit can rebase + push
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -32,6 +34,24 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Generate static site
         run: python build_static.py
+      - name: Persist forward-test ledger
+        # The track record must survive between builds, so commit track_record.json
+        # back to the repo. [skip ci] stops this commit from re-triggering the build.
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- track_record.json; then
+            echo "No track-record changes to commit"; exit 0
+          fi
+          git add track_record.json
+          git commit -m "Update forward-test track record [skip ci]"
+          for i in 1 2 3 4; do
+            if git pull --rebase --autostash origin main && git push origin HEAD:main; then
+              echo "ledger pushed"; exit 0
+            fi
+            echo "push failed; retry in $((2 ** i))s"; sleep $((2 ** i))
+          done
+          echo "::warning::could not push updated ledger (non-fatal; will retry next build)"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
