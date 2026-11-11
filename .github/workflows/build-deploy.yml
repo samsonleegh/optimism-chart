@@ -6,6 +6,7 @@ on:
   schedule:
     # every 30 min. GitHub's minimum is 5 min, but scheduled runs are
     # best-effort and often delayed under load — treat timing as approximate.
+    # NOTE: GitHub auto-pauses scheduled workflows after ~60 days with no commits.
     - cron: "*/30 * * * *"
   workflow_dispatch: {}        # allow manual runs from the Actions tab
 
