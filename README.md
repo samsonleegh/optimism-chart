@@ -63,6 +63,26 @@ T1/T2, risk/reward). Tune weights/thresholds at the top of `smartmoney.py`.
 > aren't available from the free source, so they're omitted rather than faked.
 > **Not investment advice.**
 
+## 📈 Forward Test tab (track record)
+A call is only as good as what happens next. The **Forward Test** tab paper-trades every
+**high-confidence** call and grades it later — Papa Loy's idea: *track the strong BUYs and
+check, a few days/weeks on, whether they measured up; if not, what did the initial analysis
+miss?*
+
+- A pick **opens** the first time a stock becomes a Smart Money **⭐ high-conviction BUY**
+  (score ≥ 85) or an Optimism **deep BUY** (≤ 25% of channel). Entry price + the full signal
+  snapshot are stamped in.
+- Every rebuild re-prices open picks: return since entry, return **vs market** (`^STI` / `^GSPC`),
+  days held, and whether Target 1 / the stop was touched.
+- After **20 trading days (~1 month)** a pick **settles** with a verdict — **WIN** only if it
+  both made money *and* beat its market — plus a short **post-mortem** of what the entry
+  analysis looked like (why a miss may have gone wrong).
+
+Because a static site forgets everything between builds, the track record lives in
+`track_record.json`, committed back to the repo by the build (with `[skip ci]` so it doesn't
+re-trigger). It's an honest scorecard of a heuristic — no sizing, fees or slippage — **not a
+trading system, not investment advice.**
+
 ## Run locally (live server)
 ```bash
 python3 -m venv .venv
@@ -95,7 +115,8 @@ Build the static site locally too: `.venv/bin/python build_static.py` → open `
 - `tickers.py`      — `MARKETS` = SG + US universes. Add `(ticker, name)` pairs to widen.
 - `app.py`          — live Flask dashboard, tabs, split-cadence scheduler.
 - `build_static.py` — static-site generator for GitHub Pages.
-- `.github/workflows/pages.yml` — scheduled build + deploy to Pages.
+- `trackrecord.py`   — forward-test ledger: opens/settles high-confidence picks, scores WIN/MISS, diagnoses misses.
+- `.github/workflows/build-deploy.yml` — scheduled build + deploy to Pages (also commits the track-record ledger).
 
 ## Caveats
 - Data is Yahoo Finance (`.SI`), end-of-period and delayed — not a live feed.
