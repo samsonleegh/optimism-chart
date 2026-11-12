@@ -236,6 +236,29 @@
       "source": "optimism",
       "status": "open",
       "ticker": "CMG"
+    },
+    {
+      "benchmark": "^STI",
+      "benchmark_entry": 5289.66015625,
+      "entry_date": "2026-11-11",
+      "entry_price": 0.305,
+      "entry_signals": {
+        "fair_price_50": 0.337,
+        "macd_cross": "bull",
+        "market_risk": "GREEN",
+        "optimism_pct": 23.1,
+        "regime": "transitional",
+        "rsi": 61.3,
+        "smart_money_score": 83.3,
+        "trend": "mixed"
+      },
+      "id": "optimism:S08.SI:2026-11-11",
+      "market": "SG",
+      "name": "Singapore Post",
+      "result": null,
+      "source": "optimism",
+      "status": "open",
+      "ticker": "S08.SI"
     }
   ],
   "version": 1
