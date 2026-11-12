@@ -397,6 +397,29 @@
       "source": "optimism",
       "status": "open",
       "ticker": "ADBE"
+    },
+    {
+      "benchmark": "^STI",
+      "benchmark_entry": 5293.1201171875,
+      "entry_date": "2026-11-12",
+      "entry_price": 0.29,
+      "entry_signals": {
+        "fair_price_50": 0.337,
+        "macd_cross": "bull",
+        "market_risk": "GREEN",
+        "optimism_pct": 23.1,
+        "regime": "transitional",
+        "rsi": 47.7,
+        "smart_money_score": 66.6,
+        "trend": "down"
+      },
+      "id": "optimism:S08.SI:2026-11-12",
+      "market": "SG",
+      "name": "Singapore Post",
+      "result": null,
+      "source": "optimism",
+      "status": "open",
+      "ticker": "S08.SI"
     }
   ],
   "version": 1
