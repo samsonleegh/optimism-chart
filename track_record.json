@@ -259,6 +259,29 @@
       "source": "optimism",
       "status": "open",
       "ticker": "S08.SI"
+    },
+    {
+      "benchmark": "^GSPC",
+      "benchmark_entry": 7592.39990234375,
+      "entry_date": "2026-11-12",
+      "entry_price": 227.46,
+      "entry_signals": {
+        "fair_price_50": 307.5447,
+        "macd_cross": "bull",
+        "market_risk": "AMBER",
+        "optimism_pct": 24.8,
+        "regime": "trending",
+        "rsi": 66.3,
+        "smart_money_score": 72.3,
+        "trend": "up"
+      },
+      "id": "optimism:LOW:2026-11-12",
+      "market": "US",
+      "name": "Lowe's",
+      "result": null,
+      "source": "optimism",
+      "status": "open",
+      "ticker": "LOW"
     }
   ],
   "version": 1
