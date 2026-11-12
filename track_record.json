@@ -144,6 +144,98 @@
       "source": "optimism",
       "status": "open",
       "ticker": "MCD"
+    },
+    {
+      "benchmark": "^GSPC",
+      "benchmark_entry": 7619.3798828125,
+      "entry_date": "2026-11-11",
+      "entry_price": 342.64,
+      "entry_signals": {
+        "fair_price_50": 736.3833,
+        "macd_cross": "bear",
+        "market_risk": "AMBER",
+        "optimism_pct": -50.5,
+        "regime": "transitional",
+        "rsi": 56.0,
+        "smart_money_score": 66.1,
+        "trend": "up"
+      },
+      "id": "optimism:INTU:2026-11-11",
+      "market": "US",
+      "name": "Intuit",
+      "result": null,
+      "source": "optimism",
+      "status": "open",
+      "ticker": "INTU"
+    },
+    {
+      "benchmark": "^GSPC",
+      "benchmark_entry": 7619.3798828125,
+      "entry_date": "2026-11-11",
+      "entry_price": 25.02,
+      "entry_signals": {
+        "fair_price_50": 32.9839,
+        "macd_cross": "bull",
+        "market_risk": "AMBER",
+        "optimism_pct": 4.3,
+        "regime": "transitional",
+        "rsi": 66.8,
+        "smart_money_score": 81.3,
+        "trend": "up"
+      },
+      "id": "optimism:CMCSA:2026-11-11",
+      "market": "US",
+      "name": "Comcast",
+      "result": null,
+      "source": "optimism",
+      "status": "open",
+      "ticker": "CMCSA"
+    },
+    {
+      "benchmark": "^GSPC",
+      "benchmark_entry": 7619.3798828125,
+      "entry_date": "2026-11-11",
+      "entry_price": 233.53,
+      "entry_signals": {
+        "fair_price_50": 284.3347,
+        "macd_cross": "bear",
+        "market_risk": "AMBER",
+        "optimism_pct": 12.3,
+        "regime": "trending",
+        "rsi": 60.4,
+        "smart_money_score": 65.9,
+        "trend": "up"
+      },
+      "id": "optimism:PGR:2026-11-11",
+      "market": "US",
+      "name": "Progressive",
+      "result": null,
+      "source": "optimism",
+      "status": "open",
+      "ticker": "PGR"
+    },
+    {
+      "benchmark": "^GSPC",
+      "benchmark_entry": 7619.3798828125,
+      "entry_date": "2026-11-11",
+      "entry_price": 36.64,
+      "entry_signals": {
+        "fair_price_50": 67.782,
+        "macd_cross": "bull",
+        "market_risk": "AMBER",
+        "optimism_pct": 8.2,
+        "regime": "transitional",
+        "rsi": 70.2,
+        "smart_money_score": 76.8,
+        "trend": "up"
+      },
+      "id": "optimism:CMG:2026-11-11",
+      "market": "US",
+      "name": "Chipotle",
+      "result": null,
+      "source": "optimism",
+      "status": "open",
+      "ticker": "CMG"
     }
   ],
   "version": 1
