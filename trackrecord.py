@@ -35,6 +35,10 @@ LEDGER_VERSION = 1
 # entry gates (kept in step with the two engines' own thresholds)
 SMART_HIGH_CONVICTION = 85.0   # smartmoney.HIGH_CONVICTION
 OPT_BUY_BELOW = 25.0           # optimism.BUY_BELOW
+# An Optimism deep-BUY is only tracked when Smart Money *confirms* it — otherwise
+# we'd open a basket of "cheap but still falling" names, which isn't high conviction.
+CONFIRM_SMART_MIN = 65.0       # smartmoney.BUY_ABOVE: min Smart Money score to confirm
+CONFIRM_BAD_TREND = "down"     # ...and the stock must not be in a clear downtrend
 
 # market code -> benchmark ticker (for the "vs market" alpha read)
 BENCHMARKS = {"SG": "^STI", "US": "^GSPC"}
@@ -143,27 +147,30 @@ def open_picks(ledger: dict, code: str,
             ledger["picks"].append(pick)
             opened.append(pick)
 
-    # --- source 2: Optimism deep-BUY ---
+    # --- source 2: Optimism deep-BUY, CONFIRMED by Smart Money ---
     for r in opt_results:
-        if r.recommendation == "BUY" and r.optimism <= OPT_BUY_BELOW:
-            if _is_index(r.ticker) or _has_open(ledger, r.ticker, "optimism"):
-                continue
-            entry_date, entry_price, bench_entry = _entry(r.ticker)
-            if entry_date is None:
-                continue
-            snap = {"optimism_pct": float(r.optimism),
-                    "fair_price_50": float(getattr(r, "line_price_50", 0.0)),
-                    "market_risk": risk_rating}
-            # enrich with the smart-money read for the same name, if available
-            sr = smart_by_ticker.get(r.ticker)
-            if sr is not None:
-                snap.update({"smart_money_score": float(sr.smart_money_score),
-                             "regime": sr.regime, "rsi": float(sr.rsi),
-                             "trend": sr.trend, "macd_cross": sr.macd_cross})
-            pick = _new_pick(code, r.ticker, r.name, "optimism", entry_date, entry_price,
-                             bench_entry, snap)
-            ledger["picks"].append(pick)
-            opened.append(pick)
+        if not (r.recommendation == "BUY" and r.optimism <= OPT_BUY_BELOW):
+            continue
+        if _is_index(r.ticker) or _has_open(ledger, r.ticker, "optimism"):
+            continue
+        # confirmation gate: cheap on the channel is not enough — Smart Money must
+        # agree (score >= CONFIRM_SMART_MIN) and the stock must not be falling.
+        sr = smart_by_ticker.get(r.ticker)
+        if sr is None or sr.smart_money_score < CONFIRM_SMART_MIN or sr.trend == CONFIRM_BAD_TREND:
+            continue
+        entry_date, entry_price, bench_entry = _entry(r.ticker)
+        if entry_date is None:
+            continue
+        snap = {"optimism_pct": float(r.optimism),
+                "fair_price_50": float(getattr(r, "line_price_50", 0.0)),
+                "market_risk": risk_rating,
+                "smart_money_score": float(sr.smart_money_score),
+                "regime": sr.regime, "rsi": float(sr.rsi),
+                "trend": sr.trend, "macd_cross": sr.macd_cross}
+        pick = _new_pick(code, r.ticker, r.name, "optimism", entry_date, entry_price,
+                         bench_entry, snap)
+        ledger["picks"].append(pick)
+        opened.append(pick)
 
     return opened
 

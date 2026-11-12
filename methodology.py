@@ -181,9 +181,12 @@ everything between builds, so each pick is stored in a small JSON ledger committ
 the repo.</p>
 <ul>
 <li><b>What opens a pick</b> — the first build on which a stock becomes either a Smart Money
-    <b>⭐ high-conviction BUY</b> (score ≥ {int(tr.SMART_HIGH_CONVICTION)}) or an Optimism
-    <b>deep BUY</b> (≤ {int(tr.OPT_BUY_BELOW)}% of channel). The entry price and the full
-    signal snapshot (regime, scores, RSI, market-risk, plan levels) are frozen in.</li>
+    <b>⭐ high-conviction BUY</b> (score ≥ {int(tr.SMART_HIGH_CONVICTION)}), or an Optimism
+    <b>deep BUY</b> (≤ {int(tr.OPT_BUY_BELOW)}% of channel) that is <b>confirmed</b> by Smart
+    Money (score ≥ {int(tr.CONFIRM_SMART_MIN)} and not in a downtrend). The confirmation gate
+    keeps "cheap but still falling" names out — being cheap on the channel isn't conviction on
+    its own. The entry price and the full signal snapshot (regime, scores, RSI, market-risk,
+    plan levels) are frozen in.</li>
 <li><b>Live tracking</b> — on every rebuild each open pick is re-priced: return since entry,
     return <b>vs its market</b> ({", ".join(tr.BENCHMARKS.values())}), days held, and whether
     price has touched Target&nbsp;1 or the stop.</li>
