@@ -70,8 +70,9 @@ check, a few days/weeks on, whether they measured up; if not, what did the initi
 miss?*
 
 - A pick **opens** the first time a stock becomes a Smart Money **⭐ high-conviction BUY**
-  (score ≥ 85) or an Optimism **deep BUY** (≤ 25% of channel). Entry price + the full signal
-  snapshot are stamped in.
+  (score ≥ 85), or an Optimism **deep BUY** (≤ 25% of channel) **confirmed** by Smart Money
+  (score ≥ 65 and not downtrending — so "cheap but still falling" names don't count). Entry
+  price + the full signal snapshot are stamped in.
 - Every rebuild re-prices open picks: return since entry, return **vs market** (`^STI` / `^GSPC`),
   days held, and whether Target 1 / the stop was touched.
 - After **20 trading days (~1 month)** a pick **settles** with a verdict — **WIN** only if it
