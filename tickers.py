@@ -100,3 +100,43 @@ MARKETS = {
 }
 
 ALL_STOCKS = [(code, t, n) for code, (_, lst) in MARKETS.items() for (t, n) in lst]
+
+# ticker -> sector, for the Sector Rotation view. ^STI (the index) is intentionally
+# omitted so the benchmark isn't rolled into a sector. Keep labels shared across
+# markets (Banks, Technology, ...) so the taxonomy reads the same on both boards.
+SECTORS = {
+    # --- SG ---
+    "D05.SI": "Banks", "O39.SI": "Banks", "U11.SI": "Banks",
+    "Z74.SI": "Telecom", "CC3.SI": "Telecom",
+    "S68.SI": "Financial Services",
+    "C6L.SI": "Transport", "S58.SI": "Transport", "C52.SI": "Transport",
+    "9CI.SI": "Real Estate", "C09.SI": "Real Estate", "U14.SI": "Real Estate",
+    "F17.SI": "Real Estate", "U06.SI": "Real Estate", "H78.SI": "Real Estate",
+    "BN4.SI": "Industrials", "S63.SI": "Industrials", "BS6.SI": "Industrials",
+    "5E2.SI": "Industrials", "S59.SI": "Industrials", "S08.SI": "Industrials",
+    "U96.SI": "Utilities",
+    "F34.SI": "Agriculture", "O32.SI": "Agriculture", "584.SI": "Agriculture",
+    "P8Z.SI": "Agriculture",
+    "C07.SI": "Consumer Discretionary", "G13.SI": "Consumer Discretionary",
+    "J36.SI": "Conglomerates",
+    "D01.SI": "Consumer Staples", "Y92.SI": "Consumer Staples", "OV8.SI": "Consumer Staples",
+    "V03.SI": "Technology", "5CP.SI": "Technology", "AWX.SI": "Semiconductors",
+    "Q0F.SI": "Healthcare", "BVA.SI": "Healthcare", "BSL.SI": "Healthcare",
+    "C38U.SI": "REITs", "A17U.SI": "REITs", "M44U.SI": "REITs", "ME8U.SI": "REITs",
+    "N2IU.SI": "REITs", "AJBU.SI": "REITs", "BUOU.SI": "REITs", "T82U.SI": "REITs",
+    "CRPU.SI": "REITs", "HMN.SI": "REITs", "J91U.SI": "REITs", "K71U.SI": "REITs",
+    # --- US ---
+    "AAPL": "Technology", "MSFT": "Technology", "ORCL": "Technology",
+    "CRM": "Technology", "ADBE": "Technology",
+    "NVDA": "Semiconductors", "AVGO": "Semiconductors", "AMD": "Semiconductors",
+    "AMZN": "Consumer Discretionary", "TSLA": "Consumer Discretionary",
+    "HD": "Consumer Discretionary", "MCD": "Consumer Discretionary",
+    "GOOGL": "Communication/Media", "META": "Communication/Media",
+    "NFLX": "Communication/Media", "DIS": "Communication/Media",
+    "JPM": "Banks", "BAC": "Banks",
+    "BRK-B": "Financial Services", "V": "Financial Services", "MA": "Financial Services",
+    "WMT": "Consumer Staples", "PG": "Consumer Staples", "COST": "Consumer Staples",
+    "KO": "Consumer Staples", "PEP": "Consumer Staples",
+    "UNH": "Healthcare", "JNJ": "Healthcare", "ABBV": "Healthcare",
+    "XOM": "Energy",
+}
