@@ -12,6 +12,7 @@ from __future__ import annotations
 import optimism
 import smartmoney as sm
 import trackrecord as tr
+import sectors as sx
 
 # component key -> (display label, plain-English formula)
 _SMART_DESC = {
@@ -202,7 +203,24 @@ the repo.</p>
 No position sizing, no fees/slippage, entries at the daily close, and a fixed 1-month horizon —
 read it as "does high conviction tend to pay off?", not as a backtested strategy.</div>
 
-<h2>7 · Caveats</h2>
+<h2>7 · Sector rotation (flavour of the moment)</h2>
+<p>The optimism and Smart Money tabs are bottom-up; the <b>🔥 Sectors</b> tab is the top-down
+layer — <i>which sector is the flavour of the moment?</i> Every name is tagged with a sector and
+rolled up, then sectors are ranked by a <b>momentum + money</b> heat score (0–100):</p>
+<div class="f">heat = {int(sx.WEIGHTS['ret1m']*100)}%·1-month return + {int(sx.WEIGHTS['ret1w']*100)}%·1-week return
++ {int(sx.WEIGHTS['breadth']*100)}%·breadth + {int(sx.WEIGHTS['smart']*100)}%·avg Smart-Money + {int(sx.WEIGHTS['relvol']*100)}%·avg rel-volume</div>
+<ul>
+<li><b>Return</b> — average 1-week ({sx.RET_WINDOWS['1w']}d) and 1-month ({sx.RET_WINDOWS['1m']}d) price change of the sector's names.</li>
+<li><b>Breadth</b> — % of the sector's names trending up (price above their 50-day EMA). A sector
+    where <i>most</i> names participate is a cleaner rotation signal than one carried by a single stock.</li>
+<li><b>Money</b> — average Smart-Money score and average relative volume, so a sector that's rising
+    <i>on real participation</i> outranks one drifting up on thin volume.</li>
+</ul>
+<p>Sectors sort hottest → coldest; the top sector with at least {sx.MIN_NAMES_FOR_FLAVOUR} names is called the
+<b>flavour of the moment</b>. Each row expands to the stocks inside it. <span style="color:#a55">Momentum is
+backward-looking — a sector already hot can be late; read it with the valuation (Optimism) view, not instead of it.</span></p>
+
+<h2>8 · Caveats</h2>
 <ul>
 <li>Free, delayed, end-of-day data — <b>not</b> a live or tick feed.</li>
 <li>The ask/bid split is a <b>proxy</b>, not real order flow (which needs a broker/paid feed).</li>

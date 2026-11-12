@@ -23,7 +23,8 @@ import optimism
 import smartmoney
 import methodology
 import trackrecord
-from tickers import MARKETS
+import sectors as sectors_mod
+from tickers import MARKETS, SECTORS
 
 OUT = "site"
 CHARTS = os.path.join(OUT, "charts")
@@ -47,7 +48,9 @@ CSS = """
  .err{color:#c0392b;font-size:12px} img{max-width:100%;box-shadow:0 1px 4px #0002;border-radius:8px}
  .tabs a.smartlink{background:#5b2c83;color:#fff}
  .tabs a.fwdlink{background:#1e8449;color:#fff}
+ .tabs a.sectlink{background:#d35400;color:#fff}
  .tabs.smart a.active{background:#5b2c83}
+ .tabs.sect a.active{background:#d35400}
  table.smart th,table.smart td{text-align:right}
  table.smart th:first-child,table.smart td:first-child{text-align:left}
  table.smart th{background:#5b2c83}
@@ -80,6 +83,10 @@ def smart_file(code: str) -> str:
     return "smart.html" if code == FIRST else f"smart-{code.lower()}.html"
 
 
+def sector_file(code: str) -> str:
+    return "sectors.html" if code == FIRST else f"sectors-{code.lower()}.html"
+
+
 def page(title: str, body: str) -> str:
     return (f"<!doctype html><html><head><meta charset='utf-8'><title>{html.escape(title)}</title>"
             f"<style>{CSS}</style></head><body>{body}</body></html>")
@@ -91,6 +98,7 @@ def tabs(active: str) -> str:
         f"class='{'active' if code == active else ''}'>{html.escape(label)}</a>"
         for code, (label, _) in MARKETS.items())
     links += f"<a href='{smart_file(active)}' class='smartlink'>🧠 Smart Money</a>"
+    links += f"<a href='{sector_file(active)}' class='sectlink'>🔥 Sectors</a>"
     links += "<a href='forward.html' class='fwdlink'>📈 Forward Test</a>"
     links += "<a href='methodology.html' style='background:#33415c;color:#fff'>📖 Methodology</a>"
     return f"<div class='tabs'>{links}</div>"
@@ -102,6 +110,7 @@ def smart_tabs(active: str) -> str:
         f"class='{'active' if code == active else ''}'>{html.escape(label)}</a>"
         for code, (label, _) in MARKETS.items())
     links += f"<a href='{opt_file(active)}' style='background:#dfe6ee;color:#445'>← Optimism</a>"
+    links += f"<a href='{sector_file(active)}' class='sectlink'>🔥 Sectors</a>"
     links += "<a href='forward.html' class='fwdlink'>📈 Forward Test</a>"
     links += "<a href='methodology.html' style='background:#33415c;color:#fff'>📖 Methodology</a>"
     return f"<div class='tabs smart'>{links}</div>"
@@ -371,6 +380,7 @@ def forward_nav() -> str:
         f"<a href='{opt_file(code)}' style='background:#dfe6ee;color:#445'>{html.escape(label)}</a>"
         for code, (label, _) in MARKETS.items())
     links += f"<a href='{smart_file(FIRST)}' class='smartlink'>🧠 Smart Money</a>"
+    links += f"<a href='{sector_file(FIRST)}' class='sectlink'>🔥 Sectors</a>"
     links += "<a href='forward.html' class='fwdlink active'>📈 Forward Test</a>"
     links += "<a href='methodology.html' style='background:#33415c;color:#fff'>📖 Methodology</a>"
     return f"<div class='tabs'>{links}</div>"
@@ -515,6 +525,119 @@ def _benchmark_close(code, sdf_map):
         return None
 
 
+# ----------------------------- Sector Rotation tab -------------------------
+_SECT_STYLE = (
+    "<style>"
+    ".flav{background:#fff;border-left:5px solid #d35400;border-radius:8px;"
+    "box-shadow:0 1px 3px #0001;padding:12px 16px;margin:12px 0 16px;max-width:900px}"
+    ".flav b.big{font-size:20px;color:#d35400}"
+    ".sec{background:#fff;border:1px solid #e6e9ee;border-radius:10px;margin:8px 0;"
+    "box-shadow:0 1px 3px #0001;overflow:hidden}"
+    ".sec>summary{cursor:pointer;list-style:none;padding:10px 14px;display:grid;"
+    "grid-template-columns:28px 1.4fr 1fr 70px 70px 70px 54px;gap:10px;align-items:center;font-size:14px}"
+    ".sec>summary::-webkit-details-marker{display:none}"
+    ".sec>summary:hover{background:#fff7f2}"
+    ".sec .rk{font-weight:700;color:#99a;text-align:center}"
+    ".sec .nm{font-weight:700}"
+    ".heatbar{height:10px;border-radius:5px;background:#eef1f4;position:relative;overflow:hidden}"
+    ".heatbar i{position:absolute;left:0;top:0;height:10px;border-radius:5px;"
+    "background:linear-gradient(90deg,#f1c40f,#e67e22,#d35400)}"
+    ".sec .mini{font-size:12px;color:#667;text-align:right}"
+    ".sec .flame{font-size:12px}"
+    ".secbody{padding:2px 14px 12px}"
+    ".secbody table{box-shadow:none;margin:6px 0}"
+    ".secbody th{background:#6b3b12}"
+    ".colh{display:grid;grid-template-columns:28px 1.4fr 1fr 70px 70px 70px 54px;gap:10px;"
+    "padding:4px 14px;font-size:11px;color:#889;text-transform:uppercase;letter-spacing:.03em}"
+    ".colh span{text-align:right}.colh span.l{text-align:left}"
+    "</style>")
+
+
+def _hb(v):
+    return f"<div class='heatbar'><i style='width:{max(0, min(100, v)):.0f}%'></i></div>"
+
+
+def sector_tabs(active: str) -> str:
+    links = "".join(
+        f"<a href='{sector_file(code)}' "
+        f"class='{'active' if code == active else ''}'>{html.escape(label)}</a>"
+        for code, (label, _) in MARKETS.items())
+    links += f"<a href='{opt_file(active)}' style='background:#dfe6ee;color:#445'>← Optimism</a>"
+    links += f"<a href='{smart_file(active)}' class='smartlink'>🧠 Smart Money</a>"
+    links += "<a href='forward.html' class='fwdlink'>📈 Forward Test</a>"
+    links += "<a href='methodology.html' style='background:#33415c;color:#fff'>📖 Methodology</a>"
+    return f"<div class='tabs sect'>{links}</div>"
+
+
+def sector_page(code, label, secs, risk, stamp) -> str:
+    flav = sectors_mod.flavour(secs)
+    cold = next((s for s in reversed(secs) if s["n"] >= sectors_mod.MIN_NAMES_FOR_FLAVOUR), None)
+    callout = ""
+    if flav:
+        others = [s["sector"] for s in secs[1:3] if s["n"] >= sectors_mod.MIN_NAMES_FOR_FLAVOUR
+                  and s is not flav][:2]
+        also = f" Runners-up: {', '.join(others)}." if others else ""
+        coldtxt = (f" Coldest: <b>{html.escape(cold['sector'])}</b> "
+                   f"({_pct_cell(cold['ret1m'])} 1-month)." if cold and cold is not flav else "")
+        callout = (
+            f"<div class='flav'>🔥 Flavour of the moment: <b class='big'>{html.escape(flav['sector'])}</b> "
+            f"— heat {flav['heat']:.0f}/100, {_pct_cell(flav['ret1m'])} over 1 month, "
+            f"{flav['breadth']:.0f}% of names trending up, avg Smart-Money {_fmt(flav['avg_sm'])}."
+            f"{also}{coldtxt}</div>")
+
+    header = ("<div class='colh'><span class='l'>#</span><span class='l'>Sector</span>"
+              "<span class='l'>Heat</span><span>1w</span><span>1m</span>"
+              "<span>Breadth</span><span>SM</span></div>")
+
+    blocks = ""
+    for i, s in enumerate(secs, 1):
+        openattr = " open" if i <= 2 else ""
+        flame = "🔥" if s is flav else ""
+        srows = ""
+        for it in s["stocks"]:
+            href = f"smart/{tf(it['ticker'])}.html"
+            srows += (
+                f"<tr><td><a href='{href}'>{html.escape(it['name'])}</a> "
+                f"<span style='color:#99a'>{html.escape(it['ticker'])}</span></td>"
+                f"<td>{it['last']:.4g}</td>"
+                f"<td class='{'pos' if it['chg'] >= 0 else 'neg'}'>{it['chg']:+.1f}%</td>"
+                f"<td>{_pct_cell(it['ret1m'])}</td>"
+                f"<td>{it['trend']}</td><td>{it['sm']:.0f}</td>"
+                f"<td><span class='rec {it['rec']}'>{it['rec']}</span></td></tr>")
+        blocks += (
+            f"<details class='sec'{openattr}><summary>"
+            f"<span class='rk'>{i}</span>"
+            f"<span class='nm'>{html.escape(s['sector'])} <span class='flame'>{flame}</span>"
+            f"<br><span style='font-weight:400;color:#99a;font-size:11px'>{s['n']} names</span></span>"
+            f"<span>{_hb(s['heat'])}<span class='mini'>{s['heat']:.0f}</span></span>"
+            f"<span class='mini'>{_fmt_pct(s['ret1w'])}</span>"
+            f"<span class='mini'>{_fmt_pct(s['ret1m'])}</span>"
+            f"<span class='mini'>{s['breadth']:.0f}%</span>"
+            f"<span class='mini'>{_fmt(s['avg_sm'])}</span></summary>"
+            f"<div class='secbody'><table class='smart'>"
+            f"<tr><th>Stock</th><th>Last</th><th>Chg</th><th>1m</th><th>Trend</th>"
+            f"<th>SM</th><th>Call</th></tr>{srows}</table></div></details>")
+
+    body = (
+        f"{_SECT_STYLE}"
+        f"<h1>🔥 Sector Rotation — {html.escape(label)}</h1>"
+        f"<div class='sub'>Which sector is the flavour of the moment? Every name rolled up by "
+        f"sector and ranked by a <b>momentum + money</b> heat score (0–100): 1-week &amp; "
+        f"1-month return, breadth (how many names trend up), plus Smart-Money score &amp; relative "
+        f"volume. Click a sector to see its stocks. Heuristic, delayed data — <b>not advice</b> · "
+        f"built {stamp}</div>"
+        f"{risk_banner(risk)}{sector_tabs(code)}{callout}{header}{blocks}")
+    return page(f"Sector Rotation — {label}", body)
+
+
+def _fmt(v, d=0):
+    return "—" if v is None else f"{v:.{d}f}"
+
+
+def _fmt_pct(v):
+    return "—" if v is None else f"{v:+.1f}%"
+
+
 def build() -> None:
     os.makedirs(CHARTS, exist_ok=True)
     os.makedirs(SMART, exist_ok=True)
@@ -593,6 +716,13 @@ def build() -> None:
         sdf_by_market[code] = sdf_map
         bench_by_market[code] = bench_close
         print(f"  {code} forward test: +{len(opened)} opened, {len(settled)} settled")
+
+        # --- sector rotation ---
+        secs = sectors_mod.analyze_sectors(smart_results, sdf_map, SECTORS)
+        with open(os.path.join(OUT, sector_file(code)), "w") as f:
+            f.write(sector_page(code, label, secs, risk, stamp))
+        print(f"  {code} sectors: {len(secs)} ranked; "
+              f"top={secs[0]['sector'] if secs else 'n/a'}")
 
     with open(os.path.join(OUT, "methodology.html"), "w") as f:
         f.write(page("Methodology — Optimism Charts",

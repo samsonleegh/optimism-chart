@@ -84,6 +84,14 @@ Because a static site forgets everything between builds, the track record lives 
 re-trigger). It's an honest scorecard of a heuristic — no sizing, fees or slippage — **not a
 trading system, not investment advice.**
 
+## 🔥 Sectors tab (sector rotation)
+Top-down companion to the stock views: *which sector is the flavour of the moment?* Every name
+is tagged with a sector (`tickers.SECTORS`) and rolled up, then sectors are ranked by a
+**momentum + money** heat score — 1-week & 1-month return, breadth (how many names trend up),
+and average Smart-Money score + relative volume. The hottest sector with ≥ 2 names is flagged as
+the flavour of the moment; each sector expands to the stocks inside it. One tab per market
+(SG / US). Heuristic, delayed data — **not investment advice.**
+
 ## Run locally (live server)
 ```bash
 python3 -m venv .venv
@@ -117,6 +125,7 @@ Build the static site locally too: `.venv/bin/python build_static.py` → open `
 - `app.py`          — live Flask dashboard, tabs, split-cadence scheduler.
 - `build_static.py` — static-site generator for GitHub Pages.
 - `trackrecord.py`   — forward-test ledger: opens/settles high-confidence picks, scores WIN/MISS, diagnoses misses.
+- `sectors.py`       — sector-rotation engine: rolls names up by sector, ranks by a momentum+money heat score.
 - `.github/workflows/build-deploy.yml` — scheduled build + deploy to Pages (also commits the track-record ledger).
 
 ## Caveats
