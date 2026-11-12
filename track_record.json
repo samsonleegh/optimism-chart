@@ -1,4 +1,150 @@
 {
-  "picks": [],
+  "picks": [
+    {
+      "benchmark": "^STI",
+      "benchmark_entry": 5282.7001953125,
+      "entry_date": "2026-11-12",
+      "entry_price": 7.25,
+      "entry_signals": {
+        "accumulation_score": 83.3,
+        "buy_ratio": 59.9,
+        "cmf": 0.402,
+        "confidence": 95.1,
+        "entry_score": 65.6,
+        "macd_cross": "bull",
+        "market_risk": "AMBER",
+        "regime": "transitional",
+        "rel_volume": 1.72,
+        "rsi": 76.0,
+        "smart_money_score": 85.8,
+        "stop_loss": 6.46,
+        "target1": 8.435,
+        "target2": 9.225,
+        "trend": "up"
+      },
+      "id": "smart:C6L.SI:2026-11-12",
+      "market": "SG",
+      "name": "Singapore Airlines",
+      "result": null,
+      "source": "smart",
+      "status": "open",
+      "ticker": "C6L.SI"
+    },
+    {
+      "benchmark": "^STI",
+      "benchmark_entry": 5282.7001953125,
+      "entry_date": "2026-11-12",
+      "entry_price": 1.1,
+      "entry_signals": {
+        "fair_price_50": 1.4607,
+        "macd_cross": "bull",
+        "market_risk": "AMBER",
+        "optimism_pct": 3.0,
+        "regime": "ranging",
+        "rsi": 51.6,
+        "smart_money_score": 67.1,
+        "trend": "mixed"
+      },
+      "id": "optimism:M44U.SI:2026-11-12",
+      "market": "SG",
+      "name": "Mapletree Logistics Trust",
+      "result": null,
+      "source": "optimism",
+      "status": "open",
+      "ticker": "M44U.SI"
+    },
+    {
+      "benchmark": "^STI",
+      "benchmark_entry": 5282.7001953125,
+      "entry_date": "2026-11-12",
+      "entry_price": 2.17,
+      "entry_signals": {
+        "fair_price_50": 2.5179,
+        "macd_cross": "bull",
+        "market_risk": "AMBER",
+        "optimism_pct": 16.8,
+        "regime": "ranging",
+        "rsi": 58.0,
+        "smart_money_score": 72.6,
+        "trend": "mixed"
+      },
+      "id": "optimism:AJBU.SI:2026-11-12",
+      "market": "SG",
+      "name": "Keppel DC REIT",
+      "result": null,
+      "source": "optimism",
+      "status": "open",
+      "ticker": "AJBU.SI"
+    },
+    {
+      "benchmark": "^GSPC",
+      "benchmark_entry": 7619.3798828125,
+      "entry_date": "2026-11-11",
+      "entry_price": 1087.61,
+      "entry_signals": {
+        "fair_price_50": 1200.3034,
+        "macd_cross": "bull",
+        "market_risk": "AMBER",
+        "optimism_pct": 20.1,
+        "regime": "trending",
+        "rsi": 73.2,
+        "smart_money_score": 69.9,
+        "trend": "up"
+      },
+      "id": "optimism:COST:2026-11-11",
+      "market": "US",
+      "name": "Costco",
+      "result": null,
+      "source": "optimism",
+      "status": "open",
+      "ticker": "COST"
+    },
+    {
+      "benchmark": "^GSPC",
+      "benchmark_entry": 7619.3798828125,
+      "entry_date": "2026-11-11",
+      "entry_price": 143.94,
+      "entry_signals": {
+        "fair_price_50": 174.4001,
+        "macd_cross": "bull",
+        "market_risk": "AMBER",
+        "optimism_pct": 11.5,
+        "regime": "transitional",
+        "rsi": 66.2,
+        "smart_money_score": 78.8,
+        "trend": "up"
+      },
+      "id": "optimism:PEP:2026-11-11",
+      "market": "US",
+      "name": "PepsiCo",
+      "result": null,
+      "source": "optimism",
+      "status": "open",
+      "ticker": "PEP"
+    },
+    {
+      "benchmark": "^GSPC",
+      "benchmark_entry": 7619.3798828125,
+      "entry_date": "2026-11-11",
+      "entry_price": 274.8,
+      "entry_signals": {
+        "fair_price_50": 340.2782,
+        "macd_cross": "bull",
+        "market_risk": "AMBER",
+        "optimism_pct": 16.0,
+        "regime": "trending",
+        "rsi": 65.6,
+        "smart_money_score": 77.1,
+        "trend": "up"
+      },
+      "id": "optimism:MCD:2026-11-11",
+      "market": "US",
+      "name": "McDonald's",
+      "result": null,
+      "source": "optimism",
+      "status": "open",
+      "ticker": "MCD"
+    }
+  ],
   "version": 1
 }
