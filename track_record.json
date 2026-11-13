@@ -282,6 +282,29 @@
       "source": "optimism",
       "status": "open",
       "ticker": "LOW"
+    },
+    {
+      "benchmark": "^STI",
+      "benchmark_entry": 5282.7001953125,
+      "entry_date": "2026-11-12",
+      "entry_price": 0.61,
+      "entry_signals": {
+        "fair_price_50": 0.6963,
+        "macd_cross": "bull",
+        "market_risk": "AMBER",
+        "optimism_pct": 24.8,
+        "regime": "ranging",
+        "rsi": 51.0,
+        "smart_money_score": 71.3,
+        "trend": "mixed"
+      },
+      "id": "optimism:G13.SI:2026-11-12",
+      "market": "SG",
+      "name": "Genting Singapore",
+      "result": null,
+      "source": "optimism",
+      "status": "open",
+      "ticker": "G13.SI"
     }
   ],
   "version": 1
